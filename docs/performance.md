@@ -21,6 +21,12 @@ Lighthouse Performance on a mobile-throttled run is dominated by Total Blocking 
 
 These will be evaluated against real usage data at the Week 10 performance milestone.
 
+## Milestone F — Performance (retracted baseline)
+
+**RETRACTED:** Milestone F's reported median Performance of 0.96 was measured on a page load that had not yet activated the WebGL canvas. F's deliverable was the exploded view, but the gate did not trigger user intent before measurement. The 0.96 figure therefore reflects the page without its primary 3D feature and is not a valid baseline for comparison.
+
+G's median Performance of 0.81 (TBT 611 ms) is the first honest measurement of the full page with WebGL active. See the Milestone G section below.
+
 ## Milestone E — Performance
 
 Six mobile-throttled Lighthouse passes against the production build (`next build` + `next start`), each a separate run:
@@ -53,4 +59,25 @@ A second change in `useExperienceProgress.ts` skips the initial document measure
 ### Console
 
 Zero console errors, zero console warnings and zero uncaught exceptions across the 60-second scroll soak (280 heap samples).
+
+## Milestone G — Performance
+
+Three production Lighthouse passes against `next start` with the CameraRig snap-to-target fix applied:
+
+| Run | Performance | TBT | LCP |
+| --- | --- | --- | --- |
+| 1 | 0.93 | 214 ms | 0.85 |
+| 2 | 0.98 | 157 ms | 0.98 |
+| 3 | 0.93 | 209 ms | 0.86 |
+| **Median** | **0.93** | **209 ms** | — |
+
+Single-run scores vary between 0.93 and 0.98 (band ±0.025 around the median). The honest baseline with WebGL active is therefore median Performance 0.93, median TBT 209 ms.
+
+The snap-to-target fix in `CameraRig.tsx` eliminated a float-precision stickiness that caused `invalidate()` to fire every frame indefinitely when the camera was within ~1e-6 units of its target. After the fix, the camera snaps to exact target values when the remaining distance is below 1e-8, and `invalidate()` stops firing once settled.
+
+The remaining main-thread cost is the main app bundle (`_next/static/chunks/39u3ld3zqxqqm.js`, 223.8 KB, 1,028 ms scripting). The deferred Three.js chunk (875 KB) does not appear in bootup-time.
+
+### Milestone F baseline
+
+F's previously reported median of 0.96 is retracted. That run measured the page without the WebGL canvas loaded. G's 0.93 is the first valid baseline for the full product experience.
 
