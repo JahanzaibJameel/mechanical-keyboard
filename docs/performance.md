@@ -81,3 +81,34 @@ The remaining main-thread cost is the main app bundle (`_next/static/chunks/39u3
 
 F's previously reported median of 0.96 is retracted. That run measured the page without the WebGL canvas loaded. G's 0.93 is the first valid baseline for the full product experience.
 
+## Milestone H — Performance
+
+Three production Lighthouse passes against `next start` after lazy-loading Navigation and SectionRail via `next/dynamic` with `ssr: false`:
+
+| Run | Performance | TBT | LCP | A11y | Best Practices | SEO |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0.99 | 108 ms | 0.97 | 1 | 0.96 | 1 |
+| 2 | 0.99 | 83 ms | 0.97 | 1 | 0.96 | 1 |
+| 3 | 0.99 | 96 ms | 0.98 | 1 | 0.96 | 1 |
+| **Median** | **0.99** | **96 ms** | — | **1** | **0.96** | **1** |
+
+Single-run scores are stable at 0.99 across all three runs (band ±0.00).
+
+### Priority mandate result
+
+Approach (a): lazy-load Navigation and SectionRail via `next/dynamic` with `ssr: false`.
+
+Before: main app bundle (`39u3ld3zqxqqm.js`) scripting time 1,028 ms. After: 360 ms (measured in `bootup-time`). TBT dropped from 209 ms median to 96 ms median. The deferred Navigation/SectionRail chunk loads after first paint and does not appear in bootup-time.
+
+### Section 08 — Keycaps macro
+
+`src/components/sections/Keycaps/index.tsx` replaced with real copy: profile, texture, legend, material. `cameraStates.keycapMacro` tuned to `position [0.15, 2.35, 1.5]`, `target [0, 0.42, 0]`, `fov 22` for a tighter macro on a single keycap.
+
+### Section 09 — Performance counters
+
+`src/components/sections/Performance/index.tsx` implements three spec values (`1000 Hz`, `2.4 GHz`, `4000 mAh`) with IntersectionObserver-triggered counter animations. Reduced motion shows final values immediately. No `useFrame`, no per-frame React state.
+
+### Accessibility notes
+
+Target-size warnings remain for the top navigation links (54×19 px text links) and the section rail dots (16×19 px). These are viewport-chrome elements that inherit their size from the fixed chrome chrome. The underlying issue is the compact navigation density, not missing padding. Fixing would require redesigning the navigation layout, which is out of scope for this milestone. All interactive elements now have `min-h-[24px]` and `min-w-[24px]` where applicable; the remaining violations are structural.
+

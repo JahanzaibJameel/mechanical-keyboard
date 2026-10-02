@@ -9,7 +9,7 @@ export const cameraStates: Readonly<Record<CameraStateId, CameraState>> = {
   macro: { position: [0.3, 2.4, 2.8], target: [0, 0.28, 0], fov: 28 },
   exploded: { position: [0, 3.6, 7.2], target: [0, 0.8, 0], fov: 40 },
   switchMacro: { position: [0.3, 0.95, 1.9], target: [0, 0.28, 0], fov: 26 },
-  keycapMacro: { position: [0.2, 2.1, 2.6], target: [0, 0.35, 0], fov: 26 },
+  keycapMacro: { position: [0.15, 2.35, 1.5], target: [0, 0.42, 0], fov: 22 },
   configurator: { position: [0, 1.8, 6.1], target: [0, 0.4, 0], fov: 38 },
   finale: { position: [0, 1.6, 5.8], target: [0, 0.35, 0], fov: 36 },
 };

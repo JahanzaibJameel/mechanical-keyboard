@@ -29,7 +29,7 @@ export function ProductSelector({ label, value, options, onChange }: Props) {
               type="button"
               aria-pressed={isActive}
               onClick={() => onChange(option.id)}
-              className={`flex flex-col gap-1 border px-3.5 py-3 text-left transition-colors duration-200 ease-out motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+              className={`flex min-h-[24px] flex-col gap-1 border px-3.5 py-3 text-left transition-colors duration-200 ease-out motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
                 isActive
                   ? "border-white/70 bg-white/10"
                   : "border-white/15 hover:border-white/40"

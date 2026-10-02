@@ -29,7 +29,7 @@ export function ColorSelector({ label, value, options, onChange }: Props) {
               type="button"
               aria-pressed={isActive}
               onClick={() => onChange(option.id)}
-              className={`group inline-flex items-center gap-2.5 border px-3.5 py-2.5 font-mono text-[0.6875rem] uppercase tracking-[0.18em] transition-colors duration-200 ease-out motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+              className={`flex min-h-[24px] items-center gap-2.5 border px-3.5 py-2.5 font-mono text-[0.6875rem] uppercase tracking-[0.18em] transition-colors duration-200 ease-out motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
                 isActive
                   ? "border-white/70 bg-white/10 text-white"
                   : "border-white/15 text-white/60 hover:border-white/40 hover:text-white"

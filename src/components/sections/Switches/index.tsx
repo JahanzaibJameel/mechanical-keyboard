@@ -70,7 +70,7 @@ export function Switches() {
               }
             }}
             aria-pressed={pressed}
-            className="group inline-flex items-center gap-3 border border-white/20 px-5 py-3 font-mono text-[0.6875rem] uppercase tracking-[0.18em] text-white transition-colors duration-200 ease-out motion-reduce:transition-none hover:border-white/50 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="group inline-flex min-h-[24px] items-center gap-3 border border-white/20 px-5 py-3 font-mono text-[0.6875rem] uppercase tracking-[0.18em] text-white transition-colors duration-200 ease-out motion-reduce:transition-none hover:border-white/50 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <span
               aria-hidden="true"

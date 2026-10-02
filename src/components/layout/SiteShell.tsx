@@ -1,9 +1,8 @@
 "use client";
 
 import { createContext, useEffect, useRef, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { sectionRevealState } from "@/animation/transitions/sectionTransitions";
-import { Navigation } from "@/components/layout/Navigation";
-import { SectionRail } from "@/components/layout/SectionRail";
 import { siteCopy } from "@/data/sections";
 import { useExperienceProgress } from "@/hooks/useExperienceProgress";
 
@@ -13,6 +12,22 @@ type Props = {
 };
 
 export const ActiveSectionContext = createContext<string | null>("intro");
+
+const Navigation = dynamic(
+  () =>
+    import("@/components/layout/Navigation").then((module) => ({
+      default: module.Navigation,
+    })),
+  { ssr: false },
+);
+
+const SectionRail = dynamic(
+  () =>
+    import("@/components/layout/SectionRail").then((module) => ({
+      default: module.SectionRail,
+    })),
+  { ssr: false },
+);
 
 export function SiteShell({ children, canvas }: Props) {
   const mainRef = useRef<HTMLElement>(null);

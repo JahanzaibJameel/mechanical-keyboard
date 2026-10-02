@@ -16,7 +16,7 @@ export function Navigation({ activeSectionId }: Props) {
             <li key={section.id} className="shrink-0">
               <a
                 aria-current={activeSectionId === section.id ? "location" : undefined}
-                className="transition-colors hover:text-white aria-[current=location]:text-white"
+                className="inline-flex min-h-[24px] items-center py-2 transition-colors hover:text-white aria-[current=location]:text-white"
                 href={`#${section.id}`}
               >
                 {section.label}

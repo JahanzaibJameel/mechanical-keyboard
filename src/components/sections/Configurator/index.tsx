@@ -106,7 +106,7 @@ export function Configurator() {
               <button
                 type="button"
                 onClick={reset}
-                className="border border-white/20 px-4 py-2 font-mono text-[0.6875rem] uppercase tracking-[0.2em] text-white/70 transition-colors duration-200 ease-out motion-reduce:transition-none hover:border-white/50 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="border border-white/20 px-4 py-2 font-mono text-[0.6875rem] uppercase tracking-[0.2em] text-white/70 transition-colors duration-200 ease-out motion-reduce:transition-none hover:border-white/50 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white min-h-[24px]"
               >
                 Reset
               </button>

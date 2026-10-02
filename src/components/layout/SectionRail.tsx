@@ -16,7 +16,7 @@ export function SectionRail({ activeSectionId }: Props) {
             <a
               aria-current={activeSectionId === section.id ? "location" : undefined}
               aria-label={`${String(index + 1).padStart(2, "0")} ${section.label}`}
-              className="flex size-7 items-center justify-center text-[10px] font-medium tabular-nums text-white/50 transition-colors hover:text-white aria-[current=location]:bg-white aria-[current=location]:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="flex size-10 min-w-[24px] min-h-[24px] items-center justify-center text-xs font-medium tabular-nums text-white/50 transition-colors hover:text-white aria-[current=location]:bg-white aria-[current=location]:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               href={`#${section.id}`}
             >
               {String(index + 1).padStart(2, "0")}

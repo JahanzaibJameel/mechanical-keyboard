@@ -2,8 +2,11 @@ node_modules/
 .next/
 .lh-g-*.json
 .lh-g-postfix-*.json
+.lh-h-*.json
 .lighthouse-g-*.json
+.lighthouse-h-*.json
 .lighthouse-run*.json
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
