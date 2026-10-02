@@ -21,12 +21,15 @@ function formatNumber(value: number): string {
 }
 
 function Counter({ target, suffix, label, reducedMotion }: CounterProps) {
-  const [display, setDisplay] = useState(reducedMotion ? target : 0);
+  const [display, setDisplay] = useState(0);
   const [visible, setVisible] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
   const startedRef = useRef(false);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     if (reducedMotion) {
       setDisplay(target);
       setVisible(true);
@@ -86,7 +89,7 @@ function Counter({ target, suffix, label, reducedMotion }: CounterProps) {
       }`}
     >
       <p className="text-5xl font-semibold tracking-tight text-white sm:text-6xl">
-        {formatNumber(display)}
+        {mountedRef.current || !reducedMotion ? formatNumber(display) : formatNumber(target)}
         <span className="ml-2 text-2xl text-white/70">{suffix}</span>
       </p>
       <p className="mt-2 text-sm font-medium uppercase tracking-[0.2em] text-white/60">
