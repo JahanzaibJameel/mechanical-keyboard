@@ -1,0 +1,272 @@
+# NØR 75 — AUTONOMOUS EXECUTION PROTOCOL
+
+You are executing the NØR 75 project autonomously. The user has delegated
+all milestone execution to you. You will complete each milestone, run its
+gate, verify it, and proceed to the next — without asking for approval
+between milestones.
+
+The user will review at the end. Your job is to produce a complete,
+verified, working project.
+
+## HARD RULES — violation of any of these is a project failure
+
+1. NEVER claim a milestone is complete without pasting the raw output of
+   its gate commands. "Should work" is not evidence. "Verified by
+   inspection" is not evidence. Pasted command output is evidence.
+
+2. NEVER fabricate gate results. If you cannot run a command, say so
+   explicitly and stop. Do not invent numbers. Do not invent PASS/FAIL
+   tables. Do not describe what you "expect" the gate to show.
+
+3. NEVER chain terminal commands with `&&`. The environment is
+   PowerShell 5.1. `&&` is not a statement separator. Use `;` only if a
+   command absolutely must follow another — but prefer one command per
+   line, one line per execution.
+
+4. NEVER prefix commands with `cd D:\nextjs &&`. The working directory is
+   already D:\nextjs. Prefixing with `cd` is what caused the earlier
+   failures.
+
+5. NEVER modify a file not in the current milestone's file list. If a
+   change requires touching a file outside the list, STOP and report it
+   in a single line, then continue with other work. Do not expand scope.
+
+6. NEVER declare "Project Complete" until every milestone has passed its
+   gate AND the Definition of Done in Section 22 of the master prompt is
+   fully satisfied.
+
+7. NEVER skip the reduced-motion path, the accessibility check, or the
+   manual verification items. They are gates, not optional.
+
+## TERMINAL PROTOCOL — how to actually run commands
+
+The terminal is PowerShell 5.1 on Windows. Follow this exactly:
+
+### To run a gate:
+
+  Step 1 — Free port 3000 (only if a production server may be running):
+
+    Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+
+  Step 2 — Run each gate command on its OWN LINE, one at a time:
+
+    npm run build
+
+    npx tsc --noEmit
+
+    npx vitest run
+
+    npm ls --depth=0 three @react-three/fiber react react-dom
+
+  Step 3 — Start the production server on its own line:
+
+    npm run start
+
+    Leave it running. Do not close the terminal.
+
+  Step 4 — In a SECOND terminal, run Lighthouse:
+
+    npx --yes lighthouse http://localhost:3000 --output=json --output-path=./.lighthouse-report.json --chrome-flags="--headless"
+
+  Step 5 — Extract the four scores:
+
+    $r = Get-Content -Raw '.lighthouse-report.json' | ConvertFrom-Json
+    foreach ($n in @('performance','accessibility','best-practices','seo')) { Write-Output "$n = $($r.categories.PSObject.Properties[$n].Value.score)" }
+
+  Step 6 — Stop the production server:
+
+    Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+
+### If a command fails:
+
+  - Read the error message.
+  - If it is a code error: fix the code, re-run the command.
+  - If it is a shell/environment error (unlikely given the above): report
+    it verbatim and stop. Do not guess at a workaround.
+  - Never proceed past a failing gate.
+
+### If Lighthouse exits with EPERM on Windows temp cleanup:
+
+  - This is a known Windows Chrome temp-dir permission issue.
+  - If `.lighthouse-report.json` was written and contains four scores,
+    Lighthouse is considered SUCCESSFUL. Ignore the EPERM exit code.
+  - This is the only circumstance in which a non-zero exit code is not
+    a failure.
+
+## THE AUTONOMOUS LOOP
+
+For each milestone, execute this loop without asking for approval:
+
+  1. Read the milestone spec.
+  2. Implement only the files on its list.
+  3. Run the gate commands one at a time.
+  4. Paste the raw output of each command.
+  5. If the gate passes: mark the milestone complete and move to the next.
+  6. If the gate fails: fix the failure, re-run the gate, paste the new
+     output. Repeat until the gate passes.
+  7. Do NOT stop between milestones. Continue to the next one.
+
+The only reasons to pause and ask:
+
+  - The milestone spec is genuinely ambiguous and two interpretations
+    would produce meaningfully different code.
+  - A code change requires modifying a file not in the milestone's list.
+  - A gate has failed three times in a row with the same root cause and
+    you cannot identify the fix.
+  - The user has explicitly said "stop" or "wait."
+
+Otherwise: keep going.
+
+## OUTPUT FORMAT for each milestone
+
+    ─────────────────────────────────────────
+    MILESTONE [X] — [Name]
+    ─────────────────────────────────────────
+
+    Files created:
+      - path/to/file
+    Files modified:
+      - path/to/file
+
+    Gate commands and raw output:
+
+    $ npm run build
+    <paste full output>
+
+    $ npx tsc --noEmit
+    <paste full output>
+
+    $ npx vitest run
+    <paste full output>
+
+    $ npm ls --depth=0 three @react-three/fiber react react-dom
+    <paste full output>
+
+    $ npx --yes lighthouse ...
+    <paste full output OR the four score lines>
+
+    Manual verification:
+      [List each item from the milestone's manual list, one line each,
+       with a one-word status: PASS, FAIL, or N/A]
+
+    Gate result: PASS / FAIL
+
+    [If PASS] Proceeding to Milestone [X+1].
+    [If FAIL] Fixing [specific item]. Re-running gate.
+
+## THE FULL MILESTONE SEQUENCE (execute in order)
+
+### Milestone E — Closure (already coded, needs gate)
+  Gate: build, tsc, vitest, Lighthouse Performance ≥85, Accessibility = 100.
+  Manual: verify configurator — click each case option, verify 3D updates;
+  reload, verify sessionStorage persistence; toggle reduced-motion, verify
+  instant color change.
+  Then update docs/performance.md to note E complete.
+
+### Milestone F — Closure (already coded, needs gate + visual fix)
+  Fix first: SceneLighting and Environment both render lights — the scene
+  is doubled. Choose Environment as canonical, remove the lights from
+  SceneLighting, or reduce both to half intensity. Pick one and apply.
+  Gate: build, tsc, vitest, Lighthouse Performance ≥85, Accessibility = 100.
+  Manual: scroll to Section 06, confirm parts separate in order
+  KEYCAPS → SWITCHES → PLATE → PCB → CASE. Scroll back, confirm reassembly.
+  Toggle reduced-motion, confirm snap (no interpolation).
+  60-second scroll soak, heap stable within 3 MB.
+
+### Milestone G — Section 07 Switches macro
+  Create:
+    src/components/sections/Switches/index.tsx (replace placeholder)
+  Modify:
+    src/data/cameraStates.ts (tune switchMacro state)
+    src/components/three/ProductParts.tsx (only if a per-switch
+    interaction is needed — keep it minimal)
+  Gate: build, tsc, vitest, Lighthouse Performance ≥85, A11y = 100.
+  Manual: scroll to Section 07, camera frames a single switch, one switch
+  is pressable with mouse/touch, reduces and returns.
+
+### Milestone H — Section 08 Keycaps macro + Section 09 Performance
+  Create:
+    src/components/sections/Keycaps/index.tsx (replace placeholder)
+    src/components/sections/Performance/index.tsx (replace placeholder)
+  Modify:
+    src/data/cameraStates.ts (tune keycapMacro and top states)
+  Gate: build, tsc, vitest, Lighthouse Performance ≥85, A11y = 100.
+  Manual: Section 08 shows keycap texture close-up. Section 09 numbers
+  (1000 Hz, 2.4 GHz, 4000 mAh) animate in and read as spec copy.
+
+### Milestone I — Section 11 Reassembly + Section 12 Finale
+  Create:
+    src/components/sections/FinalProduct/index.tsx (replace placeholder)
+    src/components/sections/Finale/index.tsx (replace placeholder)
+  Modify:
+    src/components/three/ProductParts.tsx (reverse the explosion when
+    scrolled past construction into reassembly — reuse the explodedRef
+    logic with a second section range)
+    src/data/cameraStates.ts (tune finale state)
+  Gate: build, tsc, vitest, Lighthouse Performance ≥85, A11y = 100.
+  Manual: Section 11 reassembles the keyboard. Section 12 is minimal —
+  NØR / 75 / tagline / CTA. No excess animation.
+
+### Milestone J — Tier 3 fallback + SEO + OG image
+  Create:
+    src/components/three/WebGLFallback.tsx (static images from
+    public/images/fallback/)
+    public/images/fallback/nor75-fallback.png (placeholder; add static
+    product images)
+    public/robots.txt
+    src/app/sitemap.ts
+  Modify:
+    src/app/opengraph-image.tsx (replace inline SVG with ImageResponse
+    from next/og OR a static PNG)
+    src/app/layout.tsx (structured data JSON-LD for Product schema.org)
+    src/components/three/ExperienceCanvas.tsx (mount WebGLFallback on
+    context failure or first-frame timeout)
+  Gate: build, tsc, vitest, Lighthouse Performance ≥85, A11y = 100, SEO = 100.
+  Manual: disable WebGL in browser dev tools, verify static fallback
+  renders. Verify OG image at /opengraph-image. Verify sitemap at
+  /sitemap.xml.
+
+### Milestone K — Final QA
+  No new features. Only fixes.
+  Run the complete gate one final time.
+  Run manual verification on:
+    - Desktop 1280px, 1440px
+    - Mobile 375px, 414px
+    - Reduced motion (all sections)
+    - WebGL disabled
+    - 5-minute scroll soak
+    - Lighthouse final scores
+  Update docs/performance.md, docs/accessibility.md with final numbers.
+  Update README.md to reflect the completed project.
+  Then — and only then — declare the project complete.
+
+## DEFINITION OF DONE
+
+The project is complete when ALL of these are true:
+
+  - Milestones 0, A, B, C, D, E, F, G, H, I, J, K all passed their gates.
+  - Lighthouse Performance ≥ 85 on production build (mobile-throttled).
+  - Lighthouse Accessibility = 100.
+  - Lighthouse Best Practices ≥ 95.
+  - Lighthouse SEO = 100.
+  - Reduced-motion path verified on every section.
+  - WebGL fallback verified.
+  - 5-minute scroll soak: heap stable.
+  - Zero console errors and zero console warnings from project code.
+  - All 12 sections render real content.
+  - Configurator updates 3D in real time.
+  - Exploded view separates and reassembles correctly.
+  - README reflects the actual state of the project.
+
+## FINAL INSTRUCTION
+
+Begin with Milestone E closure. Proceed through the sequence without
+pausing between milestones. Paste raw gate output for every milestone.
+If a gate fails, fix and re-run. Continue until Milestone K is complete
+and the Definition of Done is fully satisfied.
+
+If you reach a point where you genuinely cannot proceed, report the
+blocker in one sentence and stop. Otherwise, keep going.
+
+Do not ask "should I proceed?" — the answer is yes. The user has
+authorized the full sequence.
