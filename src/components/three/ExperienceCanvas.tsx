@@ -14,10 +14,40 @@ import {
 } from "@/animation/config";
 import { ActiveSectionContext } from "@/components/layout/SiteShell";
 import { Hero } from "@/components/sections/Hero";
+import { WebGLFallback } from "@/components/three/WebGLFallback";
 import { cameraStates } from "@/data/cameraStates";
+import {
+  detectWebGLSupport,
+  type WebGLFailureReason,
+  type WebGLSupport,
+} from "@/lib/webgl";
 import type { ProductCanvasProps } from "@/components/three/ProductCanvas";
 
 type ProductCanvasComponent = ComponentType<ProductCanvasProps>;
+
+const FIRST_FRAME_TIMEOUT_MS = 4000;
+
+/**
+ * Probes for a WebGL context once on mount.
+ *
+ * Starts as null rather than assuming support, so the deferred import is never
+ * started until the probe has actually answered. The probe itself runs in a
+ * timeout so the result lands off the critical path and no state is written
+ * synchronously inside the effect body.
+ */
+function useWebGLSupport(): WebGLSupport | null {
+  const [support, setSupport] = useState<WebGLSupport | null>(null);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSupport(detectWebGLSupport());
+    }, 0);
+
+    return () => window.clearTimeout(handle);
+  }, []);
+
+  return support;
+}
 
 /**
  * True once the visitor has shown intent to move past the intro, either by
@@ -132,7 +162,32 @@ function createMotionVector(
 export function ExperienceCanvas() {
   const activeSectionId = useContext(ActiveSectionContext);
   const hasIntent = useProductExperienceIntent(activeSectionId);
-  const ProductCanvas = useDeferredProductCanvas(hasIntent);
+  const support = useWebGLSupport();
+  const [failure, setFailure] = useState<WebGLFailureReason | null>(null);
+  const [firstFrameSeen, setFirstFrameSeen] = useState(false);
+
+  const shouldLoadCanvas = hasIntent && support?.supported === true && failure === null;
+  const ProductCanvas = useDeferredProductCanvas(shouldLoadCanvas);
+  const showCanvas =
+    ProductCanvas !== null && failure === null && (activeSectionId !== "intro" || hasIntent);
+
+  // A context can be created and then never draw, so the watchdog waits for a
+  // reported frame rather than for the canvas element to exist.
+  useEffect(() => {
+    if (!showCanvas || firstFrameSeen) {
+      return;
+    }
+
+    const handle = window.setTimeout(() => {
+      setFailure("no-first-frame");
+    }, FIRST_FRAME_TIMEOUT_MS);
+
+    return () => window.clearTimeout(handle);
+  }, [showCanvas, firstFrameSeen]);
+
+  const failureReason: WebGLFailureReason | null =
+    failure ?? (support !== null && !support.supported ? "unsupported" : null);
+
   const cameraRigRef = useRef<CameraRigTarget>({
     position: createMotionVector(cameraStates.intro.position),
     target: createMotionVector(cameraStates.intro.target),
@@ -151,9 +206,15 @@ export function ExperienceCanvas() {
             deliberate deferral, not an accidentally unstable component type:
             the module resolves exactly once and `next/dynamic` was measured to
             cost ~1.1s of hydration script evaluation. See docs/performance.md. */}
-        {ProductCanvas !== null && (activeSectionId !== "intro" || hasIntent) ? (
+        {failureReason !== null ? (
+          <WebGLFallback reason={failureReason} />
+        ) : showCanvas ? (
           // eslint-disable-next-line react-hooks/static-components
-          <ProductCanvas productRef={productRef} />
+          <ProductCanvas
+            productRef={productRef}
+            onFirstFrame={() => setFirstFrameSeen(true)}
+            onContextLost={() => setFailure("context-lost")}
+          />
         ) : null}
       </div>
       <Hero cameraRigRef={cameraRigRef} productRef={productRef} />
