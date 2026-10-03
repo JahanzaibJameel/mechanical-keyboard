@@ -101,13 +101,13 @@ const sectionTable: SectionTableEntry[] = [
   { id: "hero", label: "Hero", timelineStart: 0.08, timelineEnd: 0.2, cameraState: "hero" },
   { id: "productReveal", label: "Product", timelineStart: 0.2, timelineEnd: 0.32, cameraState: "threeQuarter" },
   { id: "materials", label: "Materials", timelineStart: 0.32, timelineEnd: 0.42, cameraState: "macro" },
-  { id: "colors", label: "Colors", timelineStart: 0.42, timelineEnd: 0.5, cameraState: "threeQuarter" },
+  { id: "colors", label: "Colors", timelineStart: 0.42, timelineEnd: 0.5, cameraState: "colors" },
   { id: "construction", label: "Construction", timelineStart: 0.5, timelineEnd: 0.64, cameraState: "exploded" },
   { id: "switches", label: "Switches", timelineStart: 0.64, timelineEnd: 0.72, cameraState: "switchMacro" },
   { id: "keycaps", label: "Keycaps", timelineStart: 0.72, timelineEnd: 0.78, cameraState: "keycapMacro" },
   { id: "performance", label: "Performance", timelineStart: 0.78, timelineEnd: 0.84, cameraState: "side" },
   { id: "configurator", label: "Configurator", timelineStart: 0.84, timelineEnd: 0.92, cameraState: "configurator" },
-  { id: "finalProduct", label: "Final product", timelineStart: 0.92, timelineEnd: 0.97, cameraState: "exploded" },
+  { id: "finalProduct", label: "Reassembly", timelineStart: 0.92, timelineEnd: 0.97, cameraState: "reassembly" },
   { id: "finale", label: "Finale", timelineStart: 0.97, timelineEnd: 1, cameraState: "finale" },
 ];
 
