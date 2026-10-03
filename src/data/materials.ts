@@ -22,12 +22,16 @@ export const keycapMaterials: Readonly<Record<KeycapColorId, PlaceholderMaterial
   signal: { color: "#e8c547", metalness: 0.05, roughness: 0.72 },
 };
 
-// Switch type has no visual effect yet, so every option resolves to the same
-// placeholder until the GLB switch materials land.
+// Switch housings differ per type so the configurator's third axis is visible.
+// These are still placeholders: the real values are sampled from the GLB switch
+// materials. The distinctions chosen here are placeholders that read correctly
+// under the scene's three-light rig at the switchMacro framing - neutral and
+// smooth for linear, warmer and rougher for tactile, cooler and roughest for
+// clicky - so a visitor can tell the three apart in the render.
 export const switchMaterials: Readonly<Record<SwitchTypeId, PlaceholderMaterial>> = {
-  linear: { color: "#c0c0c0", metalness: 0.1, roughness: 0.6 },
-  tactile: { color: "#c0c0c0", metalness: 0.1, roughness: 0.6 },
-  clicky: { color: "#c0c0c0", metalness: 0.1, roughness: 0.6 },
+  linear: { color: "#c0c0c0", metalness: 0.1, roughness: 0.55 },
+  tactile: { color: "#c8b8a0", metalness: 0.1, roughness: 0.7 },
+  clicky: { color: "#a8b0b8", metalness: 0.1, roughness: 0.8 },
 };
 
 export type ProductOption = {
