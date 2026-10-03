@@ -49,7 +49,11 @@ export function SiteShell({ children, canvas }: Props) {
       node.classList.toggle("translate-y-0", visible);
     });
 
-    const hero = main.querySelector<HTMLElement>('[aria-label="NØR 75 hero"]');
+    // The hero is rendered inside the fixed canvas layer, which is a sibling of
+    // <main> rather than a descendant, so this cannot be scoped to `main`. It
+    // covers the viewport from inside a fixed container, so inset-0 means the
+    // viewport and the headline stays centred regardless of scroll position.
+    const hero = document.querySelector<HTMLElement>('[aria-label="NØR 75 hero"]');
     if (hero) {
       const isHeroActive = activeSectionId === "hero";
       hero.classList.add("transition-opacity", "duration-700", "motion-reduce:transition-none");
