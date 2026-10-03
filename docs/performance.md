@@ -369,7 +369,7 @@ Partially delivered.
 | Reduced-motion coverage | all twelve sections, in `tests/e2e/reduced-motion.test.ts` |
 | WebGL degradation coverage | all three triggers plus the healthy case |
 | Final Lighthouse numbers | recorded in "Current baseline" |
-| Recorded QA checklist | **not present** — no single document ties the manual gate items together |
+| Recorded QA checklist | [qa-checklist.md](qa-checklist.md) — automated gates, the measured baseline, seven manual items with their status, and the not-verified list |
 
 Two defects were found and fixed by the gates rather than by inspection, which is
 the argument for having them:

@@ -157,6 +157,8 @@ of truth for this section; the short version:
   measured contrast and targets
 - [docs/performance.md](docs/performance.md) — Lighthouse history and current
   baseline
+- [docs/qa-checklist.md](docs/qa-checklist.md) — how to run the gates, the
+  measured baseline, and which manual items are still unverified
 - [docs/storyboard.md](docs/storyboard.md) — the twelve-section narrative and
   camera schedule
 - [docs/pre-development-spec.md](docs/pre-development-spec.md) — scope note
