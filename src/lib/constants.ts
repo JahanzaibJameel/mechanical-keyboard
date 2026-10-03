@@ -1,6 +1,9 @@
 export const BRAND_BACKGROUND = "#080808";
 export const CANVAS_DPR: [number, number] = [1, 2];
 
+// Tier 2 degradation. A viewport below the breakpoint renders at a pinned
+// device pixel ratio with antialiasing off. Consumed by useRenderTier in
+// ProductCanvas via resolveRenderTier in src/lib/renderTier.ts.
 export const MOBILE_LITE_BREAKPOINT = 768;
 export const MOBILE_LITE_PIXEL_RATIO = 1;
 

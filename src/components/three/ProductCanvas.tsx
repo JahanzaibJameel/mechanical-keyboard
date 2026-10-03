@@ -1,12 +1,13 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { ProductMotionTarget } from "@/animation/config";
 import { ProductScene } from "@/components/three/ProductScene";
 import { cameraStates } from "@/data/cameraStates";
 import { useProductConfig } from "@/hooks/useProductConfig";
-import { BRAND_BACKGROUND, CANVAS_DPR } from "@/lib/constants";
+import { BRAND_BACKGROUND, CANVAS_DPR, MOBILE_LITE_PIXEL_RATIO } from "@/lib/constants";
+import { LITE_TIER_MEDIA_QUERY, resolveRenderTier, type RenderTier } from "@/lib/renderTier";
 import type { ProductPartsHandle } from "@/types/parts";
 
 export type ProductCanvasProps = {
@@ -76,6 +77,36 @@ function ContextLossReporter({
   return null;
 }
 
+/**
+ * Resolves the render tier, or null until it is known.
+ *
+ * The null state matters: R3F builds the WebGLRenderer once and does not
+ * re-apply the `gl` options afterwards, so antialiasing has to be known before
+ * the Canvas mounts. Returning null until the media query has answered
+ * guarantees the renderer is constructed correctly the first time. It costs one
+ * frame in a subtree that is already lazy and only mounts after user intent.
+ */
+function useRenderTier(): RenderTier | null {
+  const [tier, setTier] = useState<RenderTier | null>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia(LITE_TIER_MEDIA_QUERY);
+
+    const updateTier = (): void => setTier(resolveRenderTier(window.innerWidth));
+
+    updateTier();
+    query.addEventListener("change", updateTier);
+    window.addEventListener("resize", updateTier);
+
+    return () => {
+      query.removeEventListener("change", updateTier);
+      window.removeEventListener("resize", updateTier);
+    };
+  }, []);
+
+  return tier;
+}
+
 export function ProductCanvas({
   productRef,
   onFirstFrame,
@@ -83,12 +114,19 @@ export function ProductCanvas({
 }: ProductCanvasProps) {
   const partsRef = useRef<ProductPartsHandle>({ ...emptyProductParts });
   const { config } = useProductConfig();
+  const tier = useRenderTier();
+
+  if (tier === null) {
+    return null;
+  }
+
+  const isLite = tier === "lite";
 
   return (
     <Canvas
-      dpr={CANVAS_DPR}
+      dpr={isLite ? MOBILE_LITE_PIXEL_RATIO : CANVAS_DPR}
       frameloop="demand"
-      gl={{ antialias: true }}
+      gl={{ antialias: !isLite }}
       camera={{
         position: cameraStates.intro.position,
         fov: cameraStates.intro.fov,
