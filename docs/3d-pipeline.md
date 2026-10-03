@@ -2,10 +2,17 @@
 
 How the 3D scene is actually built today, and what does not exist.
 
-## There is no asset pipeline
+## Status: documented, not implemented
 
-This is the most important thing to know about this document: **there is no
-Blender source and no GLB.**
+**This document describes a pipeline that is specified and not built.** The plan
+is recorded here, in `blender/README.md`, and in the empty directory layout under
+`blender/` and `src/three/`. None of it runs. What ships is a stylised primitive
+scene, and this file exists so that the difference is written down rather than
+implied by an empty folder.
+
+The decision to ship placeholders rather than integrate a model is deliberate.
+The project is otherwise complete against its audit; the remaining gap is a
+modelling and texturing job that needs assets and tooling rather than code.
 
 | Expected | Actual |
 | --- | --- |
@@ -18,11 +25,17 @@ Blender source and no GLB.**
 | `src/three/shaders/{noise,distortion,fresnel,atmosphere}/` | empty |
 | `src/three/utils/` | empty |
 
-`blender/scripts/export.py`, `cleanup.py` and `lint-names.py` are two-line
-stubs whose entire body is a `print()` describing what the script would do.
+`blender/scripts/export.py`, `cleanup.py` and `lint-names.py` are two-line stubs
+whose entire body is a `print()` describing what the script would do.
 `blender/README.md` describes the intended pipeline; it does not implement one.
 
 No GLB has ever been loaded, so the runtime loader path is also untested.
+
+The consequences for the copy are resolved rather than left inconsistent: the
+section copy in `src/data/sections.ts` describes flat colour on untextured
+forms, because that is what renders. Section 04 says so in its own body text,
+and Section 08 states outright that the caps carry no sculpt, legends or
+texture.
 
 ## What renders instead
 

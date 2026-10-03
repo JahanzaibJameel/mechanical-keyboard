@@ -11,6 +11,14 @@ a case finish, a keycap set and a switch feel and see the model change in place.
 It is a front-end demonstration, not a store: there is no checkout, no backend
 and no product photography.
 
+> **This build renders placeholder geometry; a real GLB is a future milestone.**
+> There is no Blender source, no GLB, and no loader — `useGLTF` and `GLTFLoader`
+> appear nowhere in `src/`. The keyboard is 78 untextured `boxGeometry`
+> primitives: one case, one plate, one PCB, 75 switches, 75 keycaps. The section
+> copy has been written to describe that honestly rather than a product the scene
+> does not render. See [docs/3d-pipeline.md](docs/3d-pipeline.md), which records
+> this against the item-by-item blueprint audit that established it.
+
 ## Stack
 
 | Concern | Choice |
@@ -94,7 +102,9 @@ of truth for this section; the short version:
 - A mobile tier renders below 768 px at a pinned device pixel ratio of 1 with
   antialiasing off.
 - The specification is available as a semantic table bound to the canvas by
-  `aria-describedby`, so there is a text equivalent of the scene.
+  `aria-describedby`, so a screen-reader user gets the product's specification
+  rather than nothing. It states the product spec, not a transcription of the
+  render.
 - Lighthouse: Accessibility 100, Best Practices 100, SEO 100. Performance varies
   with host CPU contention; the blueprint target is 85 or better and the current
   median is above it. See [docs/performance.md](docs/performance.md).

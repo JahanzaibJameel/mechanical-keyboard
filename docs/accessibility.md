@@ -145,6 +145,13 @@ Verified by resolving the reference the way assistive technology would: the
 attribute is present, its id resolves to the spec table specifically, and that
 element exposes 207 characters of description text.
 
+A note on what this table is and is not. It states the product's **specification**
+— `CNC aluminum`, `PBT double-shot` — which is what the fictional product is
+specified to be. It is not a transcription of the render, because the render is
+placeholder geometry: the case on screen is a box, not a milled aluminium shell.
+What the table closes is the gap that a screen-reader user previously had *no*
+product information at all, not the gap between the copy and the pixels.
+
 `Weight` reads "Not yet specified" rather than a number. Nothing in the codebase
 knows what the keyboard weighs, and inventing a figure in an accessibility
 document would be worse than recording the gap. That same sentinel keeps the row

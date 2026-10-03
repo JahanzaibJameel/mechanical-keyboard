@@ -203,9 +203,9 @@ export const sectionCopy: Readonly<Record<SectionId, SectionCopy>> = {
   },
   materials: {
     eyebrow: "04 / MATERIALS",
-    title: "Engineered surfaces.",
-    body: "Aluminum, polymer, PBT, metal and PCB come together in a balanced assembly.",
-    details: ["Anodized aluminum case", "Durable PBT keycaps"],
+    title: "Five tones, one stack.",
+    body: "Everything visible here is flat colour on an untextured form: a dark case, a pale plate, a deep green board, and the switch and keycap tones you choose below. Change a colour and the whole scene moves with it.",
+    details: ["Untextured surfaces", "One tone per layer", "Live colour changes"],
   },
   colors: {
     eyebrow: "05 / COLORS",
@@ -221,14 +221,14 @@ export const sectionCopy: Readonly<Record<SectionId, SectionCopy>> = {
   },
   switches: {
     eyebrow: "07 / SWITCHES",
-    title: "A deliberate response.",
-    body: "Choose the feedback that suits your hands and your room.",
+    title: "One of them moves.",
+    body: "Seventy-five switch housings sit in a uniform grid, each in its own tone. One is live: press it with a pointer, a finger or the button below, and it travels.",
     details: ["Linear", "Tactile", "Clicky"],
   },
   keycaps: {
     eyebrow: "08 / KEYCAPS",
-    title: "Texture you can read.",
-    body: "PBT caps pair a considered profile with crisp, durable legends.",
+    title: "A grid, in three colours.",
+    body: "Seventy-five identical caps on a uniform 15 × 5 grid. No sculpt, no legends, no texture — spacing and tone only.",
     details: ["Ash", "Snow", "Signal"],
   },
   performance: {

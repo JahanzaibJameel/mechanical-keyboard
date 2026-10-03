@@ -27,38 +27,38 @@ export function Keycaps() {
         <ul className="mt-8 grid gap-6 text-sm text-white/80 sm:grid-cols-2">
           <li>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
+              Grid
+            </p>
+            <p className="mt-1">
+              Fifteen columns by five rows on a uniform 0.19 pitch. Every cap is
+              the same box, so the field reads as spacing rather than layout.
+            </p>
+          </li>
+          <li>
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
               Profile
             </p>
             <p className="mt-1">
-              A sculpted Cherry-profile shape keeps fingers aligned without
-              fatigue, with a gently curved top surface and a rounded front face.
+              Flat. There is no sculpted row profile here; the caps are plain
+              boxes at a single height.
             </p>
           </li>
           <li>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
-              Texture
+              Colour
             </p>
             <p className="mt-1">
-              A lightly textured PBT surface resists slip and shine. The finish
-              stays consistent through long days of typing.
+              Ash, Snow and Signal each repaint all seventy-five caps at once, and
+              carry through to the configurator.
             </p>
           </li>
           <li>
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
-              Legend
+              Legends
             </p>
             <p className="mt-1">
-              Double-shot legends are molded into the cap rather than printed on
-              top, so the legend stays crisp through wear and cleaning.
-            </p>
-          </li>
-          <li>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/50">
-              Material
-            </p>
-            <p className="mt-1">
-              PBT is colorfast and stiff. The plastic holds its shape and
-              resists the oily sheen that appears on softer materials over time.
+              None. The caps carry no printed or moulded legends. That arrives
+              with a real model.
             </p>
           </li>
         </ul>

@@ -87,10 +87,12 @@ test.describe("H gate manual items - 375px viewport", () => {
     const canvasCount = await page.locator("canvas").count();
     const canvasVisible = canvasCount > 0;
 
-    // Section 08 keycap macro: scroll to the Keycaps section
+    // Section 08 keycap macro: scroll to the Keycaps section.
+// The body assertion tracks sectionCopy.keycaps.body. It was "PBT caps" before
+// the copy was realigned with the geometry the scene actually renders.
     const keycapSectionInViewport = await keycapsSection.isVisible();
     const keycapMacroRendered = canvasVisible && keycapSectionInViewport &&
-      (await keycapsSection.locator("p.text-lg").innerText()).includes("PBT caps") &&
+      (await keycapsSection.locator("p.text-lg").innerText()).includes("Seventy-five identical caps") &&
       (await keycapsSection.locator("ul li").allInnerTexts()).some((t) => ["Ash", "Snow", "Signal"].includes(t.trim()));
 
     // Section 09 counters fire on scroll-in
