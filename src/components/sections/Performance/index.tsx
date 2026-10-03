@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { SpecTable } from "@/components/sections/Performance/SpecTable";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 type CounterProps = {
@@ -144,6 +145,8 @@ export function Performance() {
             />
           </li>
         </ul>
+
+        <SpecTable />
       </div>
     </section>
   );

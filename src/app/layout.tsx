@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SPEC_ROWS } from "@/data/specs";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -69,6 +70,16 @@ const structuredData = {
   },
   material: "CNC aluminium",
   color: "Obsidian",
+  // Driven from the same source as the on-page specification table, so the
+  // structured data and the text alternative cannot drift apart. Rows whose
+  // value is a placeholder are skipped rather than published as facts.
+  additionalProperty: SPEC_ROWS.filter((row) => row.value !== "Not yet specified").map(
+    (row) => ({
+      "@type": "PropertyValue",
+      name: row.label,
+      value: row.value,
+    }),
+  ),
   offers: {
     "@type": "Offer",
     url: `${SITE_URL}/`,

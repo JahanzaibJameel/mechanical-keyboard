@@ -16,6 +16,7 @@ import { ActiveSectionContext } from "@/components/layout/SiteShell";
 import { Hero } from "@/components/sections/Hero";
 import { WebGLFallback } from "@/components/three/WebGLFallback";
 import { cameraStates } from "@/data/cameraStates";
+import { SPEC_TABLE_ID } from "@/data/specs";
 import {
   detectWebGLSupport,
   type WebGLFailureReason,
@@ -200,7 +201,12 @@ export function ExperienceCanvas() {
 
   return (
     <div className="relative h-full w-full">
-      <div className="pointer-events-auto absolute inset-0 bg-background">
+      <div
+        className="pointer-events-auto absolute inset-0 bg-background"
+        // The 3D scene has no text of its own, so it is described by the
+        // specification table in section 09 rather than left unlabelled.
+        aria-describedby={SPEC_TABLE_ID}
+      >
         {/* ProductCanvas is resolved from a runtime import() held in state so the
             Three.js bundle stays off the initial client graph. That is a
             deliberate deferral, not an accidentally unstable component type:
