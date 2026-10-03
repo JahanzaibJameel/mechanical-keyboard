@@ -10,6 +10,8 @@ type CounterProps = {
   readonly reducedMotion: boolean;
 };
 
+const COUNTER_DURATION_MS = 1500;
+
 function formatNumber(value: number): string {
   if (value >= 1000) {
     return `${Math.round(value).toLocaleString("en-US")}`;
@@ -21,18 +23,16 @@ function formatNumber(value: number): string {
 }
 
 function Counter({ target, suffix, label, reducedMotion }: CounterProps) {
-  const [display, setDisplay] = useState(0);
-  const [visible, setVisible] = useState(false);
+  // Eased 0..1 counter position rather than the value itself, so the rendered
+  // number can be derived. With motion suppressed the position stays 0 and the
+  // final value is read straight from `target`, which needs no animation frame
+  // and no state write to get there.
+  const [progress, setProgress] = useState(0);
+  const [inView, setInView] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
-  const startedRef = useRef(false);
-  const mountedRef = useRef(false);
 
   useEffect(() => {
-    mountedRef.current = true;
-
     if (reducedMotion) {
-      setDisplay(target);
-      setVisible(true);
       return;
     }
 
@@ -41,55 +41,50 @@ function Counter({ target, suffix, label, reducedMotion }: CounterProps) {
       return;
     }
 
+    let frame = 0;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting && !startedRef.current) {
-            startedRef.current = true;
-            setVisible(true);
-            animateCounter();
-            observer.disconnect();
+          if (!entry.isIntersecting) {
+            continue;
           }
+
+          observer.disconnect();
+          setInView(true);
+
+          const start = performance.now();
+          const tick = (now: number): void => {
+            const elapsed = Math.min(1, (now - start) / COUNTER_DURATION_MS);
+            setProgress(1 - Math.pow(1 - elapsed, 3));
+            if (elapsed < 1) {
+              frame = requestAnimationFrame(tick);
+            }
+          };
+          frame = requestAnimationFrame(tick);
         }
       },
       { threshold: 0.4 },
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, [target, reducedMotion]);
 
-  const animateCounter = () => {
-    const duration = 1500;
-    const start = performance.now();
-    const from = 0;
-
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      const value = from + (target - from) * eased;
-      setDisplay(value);
-
-      if (progress < 1) {
-        requestAnimationFrame(tick);
-      } else {
-        setDisplay(target);
-      }
-    };
-
-    requestAnimationFrame(tick);
-  };
+  const shown = reducedMotion ? target : target * progress;
 
   return (
     <div
       ref={sectionRef}
       className={`transition-opacity duration-700 motion-reduce:transition-none ${
-        visible ? "opacity-100" : "opacity-0"
+        inView || reducedMotion ? "opacity-100" : "opacity-0"
       }`}
     >
       <p className="text-5xl font-semibold tracking-tight text-white sm:text-6xl">
-        {mountedRef.current || !reducedMotion ? formatNumber(display) : formatNumber(target)}
+        {formatNumber(shown)}
         <span className="ml-2 text-2xl text-white/70">{suffix}</span>
       </p>
       <p className="mt-2 text-sm font-medium uppercase tracking-[0.2em] text-white/60">
