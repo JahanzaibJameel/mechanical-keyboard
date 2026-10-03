@@ -4,6 +4,92 @@ This project keeps draw calls, texture sizes, and animation work within the oper
 
 The static scene uses Three.js 0.182.0 with @react-three/fiber 9.8.1. With Three.js 0.186.1, the browser console reported: `THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.` The warning originates from Three.js Clock use in the render runtime (Three.js deprecates Clock starting in r183); retain 0.182.0 for this milestone to keep the browser console free of that warning.
 
+## Current baseline
+
+Three consecutive mobile-throttled Lighthouse 12.8.2 runs against
+`next build` + `next start`, 2026-10-03, at commit `cd47c3e`. Reports are
+`.lighthouse-cur-{1,2,3}.json` (gitignored).
+
+| Run | Performance | TBT | LCP | A11y | Best Practices | SEO |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0.99 | 102 ms | 1,986 ms | 1 | 1 | 1 |
+| 2 | 0.94 | 143 ms | 2,799 ms | 1 | 1 | 1 |
+| 3 | 0.96 | 100 ms | 2,566 ms | 1 | 1 | 1 |
+| **Median** | **0.96** | **102 ms** | **2,566 ms** | **1** | **1** | **1** |
+
+Against the Definition of Done:
+
+| Gate | Target | Current | Status |
+| --- | --- | --- | --- |
+| Performance | ≥ 85 | 96 (median) | PASS |
+| Accessibility | 100 | 100 | PASS |
+| Best Practices | ≥ 95 | 100 | PASS |
+| SEO | 100 | 100 | PASS |
+| `errors-in-console` | 1 | 1 | PASS |
+| Zero console errors from project code | 0 errors | 0 errors | PASS |
+
+### What the milestone-I series measured, and why this is different
+
+The six `i1` runs recorded earlier on 2026-10-03 gave a median Performance of
+**0.80**, median TBT **600 ms**, median LCP **2,870 ms**, and
+`errors-in-console` = 0 in all six. That series predates the hydration fix
+below. The difference is not measurement noise: `errors-in-console` failing means
+React threw away the server-rendered tree and re-rendered the whole page on the
+client during hydration, which is a large and entirely avoidable main-thread
+cost. Removing the mismatch removed that recovery pass.
+
+| Series | Perf median | TBT median | LCP median | console errors |
+| --- | --- | --- | --- | --- |
+| `i1` (pre-fix) | 0.80 | 600 ms | 2,870 ms | 1 per run |
+| `cur` (post-fix) | 0.96 | 102 ms | 2,566 ms | 0 |
+
+### Transfer and main-thread cost
+
+From run 3:
+
+| Metric | Value |
+| --- | --- |
+| Total byte weight | 269,847 bytes (264 KiB) |
+| Initial JavaScript | 9 scripts — 176,711 B transfer / 559,051 B uncompressed |
+| Largest chunk | `39u3ld3zqxqqm.js` — 229,156 B raw / 72,068 B transfer |
+| Second | `2l_y_qqi24r7y.js` — 178,147 B raw / 47,610 B transfer |
+| Third | `0e9n8jxkz4i9r.js` — 93,362 B raw / 34,495 B transfer |
+| `bootup-time` | 0.5 s |
+| `unused-javascript` | 49 KiB estimated savings |
+| CLS | 0 in all three runs |
+
+Main-thread breakdown, run 3:
+
+| Task | Duration |
+| --- | --- |
+| Script Evaluation | 462.9 ms |
+| Style & Layout | 314.7 ms |
+| Other | 180.5 ms |
+| Script Parsing & Compilation | 62.5 ms |
+| Rendering | 14.6 ms |
+| Parse HTML & CSS | 14.3 ms |
+
+Three.js is not in the initial graph: no chunk in the nine above is the ~875 KB
+deferred 3D payload, which is the intended result of the runtime `import()`
+described under Milestone E.
+
+Run-to-run variance on this host remains roughly ±0.03 on Performance. One run
+in the `i1` series carried the warning "The tested device appears to have a
+slower CPU than Lighthouse expects"; the three `cur` runs carried no warnings at
+all, so the current numbers are not depressed by that calibration problem.
+Evaluate any gate on the median of three or more runs, never on a single pass.
+
+### Remaining performance work
+
+Not addressed in this round, and the levers the audits actually point at:
+
+- 49 KiB of unused JavaScript on first load.
+- Script Evaluation is still the largest main-thread item at 462.9 ms, most of
+  it react-dom's own module evaluation.
+- No vendor chunk preloading strategy.
+- Worker-based three.js initialization and OffscreenCanvas rendering.
+- Real-device, non-throttled profiling. Every number here is simulated.
+
 ## Milestone B — Performance Baseline
 
 Finalized mobile-throttled Lighthouse scores: Performance 74, Accessibility 100, Best Practices 100, SEO 100. Latest remeasurement: TBT 1,085 ms, boot-up time 1,925.392 ms, main-thread work 2,358.760 ms, and LCP 2,631.079 ms. The recorded baseline total byte weight is 490,815 bytes; the latest remeasurement was 490,680 bytes.
@@ -83,6 +169,10 @@ F's previously reported median of 0.96 is retracted. That run measured the page 
 
 ## Milestone H — Performance
 
+> **Superseded.** These figures describe the Milestone H build. The current
+> baseline is in "Current baseline" above. Kept as the record of what was
+> measured at the time.
+
 Three production Lighthouse passes against `next start` after lazy-loading Navigation and SectionRail via `next/dynamic` with `ssr: false`:
 
 | Run | Performance | TBT | LCP | A11y | Best Practices | SEO |
@@ -110,7 +200,14 @@ Before: main app bundle (`39u3ld3zqxqqm.js`) scripting time 1,028 ms. After: 360
 
 ### Accessibility notes
 
-Target-size warnings remain for the top navigation links (54×19 px text links) and the section rail dots (16×19 px). These are viewport-chrome elements that inherit their size from the fixed chrome chrome. The underlying issue is the compact navigation density, not missing padding. Fixing would require redesigning the navigation layout, which is out of scope for this milestone. All interactive elements now have `min-h-[24px]` and `min-w-[24px]` where applicable; the remaining violations are structural.
+At Milestone H, Lighthouse's `target-size` audit still failed on the top
+navigation links and the section rail dots, and the reason recorded was that
+fixing it would mean redesigning the navigation layout, which was out of scope.
+
+**Resolved in the current build.** `target-size` now scores 1 with zero
+violations, and all configurator controls measure 39–63 px tall at a 375 × 667
+viewport, above the 24 px WCAG 2.2 minimum. See
+[accessibility.md](accessibility.md).
 
 ### Milestone H — manual gate closure
 
@@ -134,4 +231,124 @@ Five manual gate items. Two were verified in the previous round (production buil
 
 - console errors: 0
 - console warnings: 0
+
+## Milestone I — Reassembly and finale
+
+Section 11 reverses the Section 06 explosion across its own window, and
+Section 12 closes the page. `computeExplodedState` in
+`src/components/three/ProductParts.tsx` owns the schedule end to end: 0 → 1
+through Construction, held at 1 through Switches, Keycaps, Performance and
+Configurator, 1 → 0 through Reassembly, held at 0 through Finale. Six unit tests
+in `tests/unit/reassemblyTimeline.test.ts` assert each of those five phases.
+
+**Gate results at the time of the audit.** The Milestone I work was committed
+late and the repository did not pass its own gates:
+
+| Gate | Result |
+| --- | --- |
+| `npm run build` | pass |
+| `npx tsc --noEmit` | pass |
+| `npx vitest run` | **fail, exit 1** — the config collected the Agent Manager worktree's Playwright specs |
+| `npm run lint` | **fail, exit 1** — 26 errors, 15 warnings |
+| `npx playwright test --list` | **fail, exit 1** — 0 tests in 0 files, no config existed |
+| Lighthouse Performance | **0.80 median** — below the ≥ 85 requirement |
+| `errors-in-console` | **0 in all six runs** — React hydration error #418 |
+
+### Hydration error #418
+
+Every one of the six `i1` runs logged `Minified React error #418`, a
+server/client text mismatch, which cost Best Practices its point (0.96).
+
+The cause was not where it first appeared. `useReducedMotion` read
+`window.matchMedia` inside its `useState` initializer, so for visitors whose
+browser prefers reduced motion the first client render disagreed with the server
+and React discarded and re-rendered the tree. It reproduced only under
+`prefers-reduced-motion: reduce`; the initial `no-preference` case was clean,
+which is why it survived several rounds of measurement.
+
+Fixed in two parts:
+
+- The hook now starts `false` on both sides and adopts the media-query value in
+  its effect, so hydration sees identical markup unconditionally.
+- The Performance counters store an eased 0→1 position and derive the displayed
+  number, instead of storing the number and reading a ref during render. Under
+  reduced motion the position stays 0 and the value comes straight from `target`,
+  so the final figures appear with no animation frame and no state write.
+
+Reproduced pre-fix in Chromium at 412 × 823 with 4× CPU throttling and
+`emulateMedia({ reducedMotion: "reduce" })`: 1 page error. After the fix: 0
+console messages under both `reduce` and `no-preference`.
+
+### Gate results after the Tier 1 fixes
+
+| Gate | Before | After |
+| --- | --- | --- |
+| `npm run lint` | 26 errors, 15 warnings | **0 problems, exit 0** |
+| `npx vitest run` | exit 1, 2 failed suites | **5 files, 44 tests, exit 0** |
+| `npx playwright test` | could not collect any test | **3 tests, 3 passed, exit 0** |
+| `errors-in-console` | 0 | **1** |
+| Best Practices | 0.96 | **1.00** |
+| Performance (median of 3) | 0.80 | **0.96** |
+| TBT (median of 3) | 600 ms | **102 ms** |
+
+The Performance jump is attributed mainly to the hydration fix. A hydration
+mismatch forces React to throw away the server HTML and re-render the page on
+the client; removing it removed roughly 500 ms of main-thread recovery work.
+The `CameraRig` restructure also moved initial camera placement into the first
+frame instead of a layout effect, which removed one forced layout before first
+paint.
+
+Two other fixes were behavioural rather than cosmetic:
+
+- `handleSwitchPointerOut` was dead code in `ProductParts.tsx`. The hero switch
+  used it for nothing, so leaving the switch stranded `document.body.style.cursor`
+  on `pointer`. It now releases both the press and the cursor.
+- `useProductExperienceIntent` registered five window listeners and tore them
+  down and re-registered them every time intent flipped. It now registers them
+  once.
+
+### Verification
+
+- 60-second scroll soak, production build: heap before 9.54 MB, after 9.54 MB,
+  delta 0 MB, 0 console errors. 4 console warnings, all ANGLE/GL driver
+  "GPU stall due to ReadPixels" notices that appear in every headless Chrome
+  WebGL run.
+- 375 × 667 viewport: canvas visible, Section 08 renders, Section 09 counters
+  fire on scroll-in, reduced-motion counters show final values, 0 console errors,
+  0 console warnings.
+- Target sizes measured at the same viewport: case and keycap options 39 px tall,
+  switch options 63 px tall.
+
+## Milestone J — Tier 3 fallback and SEO
+
+**Not started.** No work in this round touched it, and none of its deliverables
+exist. Recording the state so it is not mistaken for planned-but-pending:
+
+| Deliverable | State |
+| --- | --- |
+| `WebGLFallback.tsx` or equivalent | absent |
+| `public/images/fallback/` images | empty `.gitkeep` only |
+| Trigger on context creation failure | no listener attached |
+| Trigger on `webglcontextlost` | no listener attached |
+| First-frame timeout | not implemented |
+| `public/robots.txt` or `src/app/robots.ts` | absent |
+| `src/app/sitemap.ts` | absent — build emits only `/`, `/_not-found`, `/opengraph-image` |
+| Product JSON-LD | no `application/ld+json` anywhere in `src/` |
+| Canonical URL | absent from `metadata` |
+| Icons in `public/icons/` | empty `.gitkeep`; only `src/app/favicon.ico` exists |
+| OG image | still `src/app/opengraph-image.tsx`, an inline SVG with Arial text |
+
+The consequence for performance is that `MOBILE_LITE_BREAKPOINT` and
+`MOBILE_LITE_PIXEL_RATIO` in `src/lib/constants.ts` still have no consumer, so
+every device takes the identical code path and the only device-dependent value is
+the `dpr={[1, 2]}` cap.
+
+Note that Lighthouse SEO scores 1.00 regardless. That category does not require
+a canonical URL, a sitemap, `robots.txt` or structured data, so the 100 must not
+be read as evidence that any of them exist.
+
+## Milestone K — Final QA
+
+Not started. `.github/workflows/ci.yml` and `.github/workflows/lighthouse.yml`
+do not exist, and neither does a recorded QA checklist.
 
