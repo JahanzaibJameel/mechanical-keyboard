@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import type { ProductMotionTarget } from "@/animation/config";
 import { ActiveSectionContext } from "@/components/layout/SiteShell";
 import { CameraRig } from "@/components/three/CameraRig";
-import { Environment } from "@/components/three/Environment";
+import { SceneEnvironment } from "@/components/three/Environment";
 import { ProductParts } from "@/components/three/ProductParts";
 import {
   SceneEffects,
@@ -54,7 +54,7 @@ export function ProductScene({
 
   return (
     <>
-      <Environment />
+      <SceneEnvironment />
       <CameraRig initialStateId="intro" />
       <ProductParts config={config} partsRef={partsRef} productRef={productRef} />
       {effectsEnabled ? (
