@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agent Manager worktrees are scratch checkouts, not project source.
+    // Without this every file is linted twice and each real finding is
+    // reported against the worktree copy as well.
+    ".kilo/**",
   ]),
 ]);
 

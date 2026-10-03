@@ -1,5 +1,14 @@
 import { test, expect } from "@playwright/test";
-import path from "path";
+import fs from "node:fs";
+
+const RESULTS_DIR = "tests/e2e/results";
+
+function writeSummary(summary: string): void {
+  if (!fs.existsSync(RESULTS_DIR)) {
+    fs.mkdirSync(RESULTS_DIR, { recursive: true });
+  }
+  fs.writeFileSync(`${RESULTS_DIR}/viewport-summary.txt`, summary);
+}
 
 test.describe("H gate manual items - 375px viewport", () => {
   test.setTimeout(120000);
@@ -35,8 +44,7 @@ test.describe("H gate manual items - 375px viewport", () => {
     // Debug helper
     const debugCanvas = async () => {
       const info = await page.evaluate(() => {
-        const canvas = document.querySelector("canvas");
-        const ctx = document.querySelector('[data-state="canvas"]') || canvas as any;
+        const canvas = document.querySelector<HTMLCanvasElement>("canvas");
         return {
           hasCanvas: !!canvas,
           canvasRect: canvas ? { x: (canvas as HTMLElement).offsetX, y: (canvas as HTMLElement).offsetY, width: (canvas as HTMLElement).clientWidth, height: (canvas as HTMLElement).clientHeight } : null,
@@ -112,12 +120,7 @@ test.describe("H gate manual items - 375px viewport", () => {
 
     console.log(summary);
 
-    const fs = require("fs");
-    const resultsDir = "tests/e2e/results";
-    if (!fs.existsSync(resultsDir)) {
-      fs.mkdirSync(resultsDir, { recursive: true });
-    }
-    fs.writeFileSync(`${resultsDir}/viewport-summary.txt`, summary);
+    writeSummary(summary);
 
     expect(consoleErrors.length).toBe(0);
     expect(consoleWarnings.length).toBe(0);

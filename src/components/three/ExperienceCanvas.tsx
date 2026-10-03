@@ -15,7 +15,6 @@ import {
 import { ActiveSectionContext } from "@/components/layout/SiteShell";
 import { Hero } from "@/components/sections/Hero";
 import { cameraStates } from "@/data/cameraStates";
-import { BRAND_BACKGROUND } from "@/lib/constants";
 import type { ProductCanvasProps } from "@/components/three/ProductCanvas";
 
 type ProductCanvasComponent = ComponentType<ProductCanvasProps>;
@@ -25,20 +24,10 @@ type ProductCanvasComponent = ComponentType<ProductCanvasProps>;
  * interacting with the page or by scrolling into a later section.
  */
 function useProductExperienceIntent(activeSectionId: string | null): boolean {
-  const [hasIntent, setHasIntent] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
-    if (activeSectionId !== null && activeSectionId !== "intro") {
-      setHasIntent(true);
-    }
-  }, [activeSectionId]);
-
-  useEffect(() => {
-    if (hasIntent) {
-      return;
-    }
-
-    const markIntent = (): void => setHasIntent(true);
+    const markIntent = (): void => setHasInteracted(true);
     const options: AddEventListenerOptions = { passive: true, once: true };
     const signals: (keyof WindowEventMap)[] = [
       "scroll",
@@ -57,9 +46,11 @@ function useProductExperienceIntent(activeSectionId: string | null): boolean {
         window.removeEventListener(signal, markIntent);
       }
     };
-  }, [hasIntent]);
+  }, []);
 
-  return hasIntent;
+  // Leaving the intro is itself the signal. Both terms only ever turn true, so
+  // they combine without an effect writing state after render.
+  return hasInteracted || (activeSectionId !== null && activeSectionId !== "intro");
 }
 
 /**
@@ -140,7 +131,6 @@ function createMotionVector(
 
 export function ExperienceCanvas() {
   const activeSectionId = useContext(ActiveSectionContext);
-  const hasEnteredProductExperience = useRef(false);
   const hasIntent = useProductExperienceIntent(activeSectionId);
   const ProductCanvas = useDeferredProductCanvas(hasIntent);
   const cameraRigRef = useRef<CameraRigTarget>({
@@ -153,17 +143,16 @@ export function ExperienceCanvas() {
     opacity: 0,
   });
 
-  useEffect(() => {
-    if (activeSectionId !== null && activeSectionId !== "intro") {
-      hasEnteredProductExperience.current = true;
-    }
-  }, [activeSectionId]);
-
   return (
     <div className="relative h-full w-full">
       <div className="pointer-events-auto absolute inset-0 bg-background">
-        {ProductCanvas !== null &&
-        (activeSectionId !== "intro" || hasEnteredProductExperience.current) ? (
+        {/* ProductCanvas is resolved from a runtime import() held in state so the
+            Three.js bundle stays off the initial client graph. That is a
+            deliberate deferral, not an accidentally unstable component type:
+            the module resolves exactly once and `next/dynamic` was measured to
+            cost ~1.1s of hydration script evaluation. See docs/performance.md. */}
+        {ProductCanvas !== null && (activeSectionId !== "intro" || hasIntent) ? (
+          // eslint-disable-next-line react-hooks/static-components
           <ProductCanvas productRef={productRef} />
         ) : null}
       </div>

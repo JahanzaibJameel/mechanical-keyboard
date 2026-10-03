@@ -59,6 +59,38 @@ const SWITCH_PRESS_DAMPING = 18;
 const SWITCH_PRESS_SETTLE_EPSILON = 0.001;
 
 const CONSTRUCTION_SECTION = sections.find((section) => section.id === "construction");
+const FINAL_PRODUCT_SECTION = sections.find((section) => section.id === "finalProduct");
+
+/**
+ * Explosion schedule (owned by ProductParts; section components never drive it):
+ *   0 -> 1 through Section 06 (Construction)
+ *   hold at 1 through Sections 07-10 (Switches, Keycaps, Performance, Configurator)
+ *   1 -> 0 through Section 11 (Reassembly)
+ *   hold at 0 through Section 12 (Finale)
+ */
+export function computeExplodedState(progress: number): number {
+  const constructionLocal = CONSTRUCTION_SECTION
+    ? getSectionLocalProgress(progress, CONSTRUCTION_SECTION)
+    : 0;
+  const constructionExploded = Math.min(1, constructionLocal / EXPLOSION_COMPLETE_AT);
+  const explosionProgress = constructionExploded * constructionExploded * (3 - 2 * constructionExploded);
+
+  const finalProductLocal = FINAL_PRODUCT_SECTION
+    ? getSectionLocalProgress(progress, FINAL_PRODUCT_SECTION)
+    : 0;
+  const reassemblyProgress = finalProductLocal * finalProductLocal * (3 - 2 * finalProductLocal);
+  const reassemblyExploded = 1 - reassemblyProgress;
+
+  if (finalProductLocal >= 1) {
+    return 0;
+  }
+  if (finalProductLocal > 0) {
+    return reassemblyExploded;
+  }
+  return explosionProgress;
+}
+
+/** Exported for schedule verification tests; section components never drive it. */
 
 /**
  * Assembled rest height plus the vertical offset applied while exploded,
@@ -134,6 +166,7 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
   };
 
   const handleSwitchPointerOut = (): void => {
+    handleSwitchPressEnd();
     document.body.style.cursor = "";
   };
 
@@ -147,20 +180,17 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
       root.traverse((object) => applyPartOpacity(object, productRef.current.opacity));
     }
 
-    const localProgress = CONSTRUCTION_SECTION
-      ? getSectionLocalProgress(progress, CONSTRUCTION_SECTION)
-      : 0;
-    const shaped = Math.min(1, localProgress / EXPLOSION_COMPLETE_AT);
-    const target = shaped * shaped * (3 - 2 * shaped);
+    // Global explosion schedule owned by ProductParts; section components never drive it.
+    const exploded = computeExplodedState(progress);
 
     if (reducedMotion) {
-      explodedRef.current = target;
+      explodedRef.current = exploded;
     } else {
       const step = Math.min(delta, 0.1);
       const alpha = 1 - Math.exp(-EXPLOSION_DAMPING * step);
-      explodedRef.current += (target - explodedRef.current) * alpha;
+      explodedRef.current += (exploded - explodedRef.current) * alpha;
 
-      if (Math.abs(target - explodedRef.current) > EXPLOSION_SETTLE_EPSILON) {
+      if (Math.abs(exploded - explodedRef.current) > EXPLOSION_SETTLE_EPSILON) {
         invalidate();
       }
     }
@@ -268,7 +298,7 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
                 ref={isHeroSwitch ? (mesh) => (heroSwitchRef.current = mesh) : undefined}
                 onPointerDown={isHeroSwitch ? handleSwitchPressStart : undefined}
                 onPointerUp={isHeroSwitch ? handleSwitchPressEnd : undefined}
-                onPointerOut={isHeroSwitch ? handleSwitchPressEnd : undefined}
+                onPointerOut={isHeroSwitch ? handleSwitchPointerOut : undefined}
                 onPointerOver={isHeroSwitch ? handleSwitchPointerOver : undefined}
               >
                 <boxGeometry

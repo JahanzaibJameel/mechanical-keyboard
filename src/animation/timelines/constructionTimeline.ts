@@ -1,5 +1,3 @@
-import { sections } from "@/data/sections";
-
 export type SectionRevealState = "hidden" | "visible";
 
 /**

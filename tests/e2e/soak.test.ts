@@ -1,7 +1,14 @@
 import { test, expect } from "@playwright/test";
-import path from "path";
+import fs from "node:fs";
 
-const OUTPUT_DIR = path.join(__dirname, "..", "..", "tests", "e2e", "results");
+const RESULTS_DIR = "tests/e2e/results";
+
+function writeSummary(summary: string): void {
+  if (!fs.existsSync(RESULTS_DIR)) {
+    fs.mkdirSync(RESULTS_DIR, { recursive: true });
+  }
+  fs.writeFileSync(`${RESULTS_DIR}/soak-summary.txt`, summary);
+}
 
 test.describe("H gate manual items", () => {
   test.setTimeout(90000);
@@ -67,13 +74,7 @@ test.describe("H gate manual items", () => {
 
     console.log(summary);
 
-    // write summary to file for the report
-    const fs = require("fs");
-    const resultsDir = "tests/e2e/results";
-    if (!fs.existsSync(resultsDir)) {
-      fs.mkdirSync(resultsDir, { recursive: true });
-    }
-    fs.writeFileSync(`${resultsDir}/soak-summary.txt`, summary);
+    writeSummary(summary);
 
     expect(consoleErrors.length).toBe(0);
     expect(stable).toBe(true);

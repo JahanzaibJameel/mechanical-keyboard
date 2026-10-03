@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useLayoutEffect, useRef } from "react";
+import { useRef } from "react";
 import * as THREE from "three";
 import { cameraStateAtProgress } from "@/animation/transitions/cameraTransitions";
 import { cameraStates } from "@/data/cameraStates";
@@ -20,25 +20,31 @@ export function CameraRig({
   initialStateId = "intro",
 }: CameraRigProps) {
   const reducedMotion = useReducedMotion();
-  const camera = useThree((state) => {
-    if (!(state.camera instanceof THREE.PerspectiveCamera)) {
-      throw new Error("CameraRig requires a perspective camera.");
-    }
-    return state.camera;
-  });
   const invalidate = useThree((state) => state.invalidate);
   const positionTarget = useRef(new THREE.Vector3());
   const lookAtTarget = useRef(new THREE.Vector3());
+  const isPlacedRef = useRef(false);
   const initialState = cameraStates[initialStateId];
 
-  useLayoutEffect(() => {
-    camera.position.set(...initialState.position);
-    camera.lookAt(...initialState.target);
-    camera.fov = initialState.fov;
-    camera.updateProjectionMatrix();
-  }, [camera, initialState]);
+  // The camera is read from the frame state rather than from useThree. It is an
+  // imperative object owned by the renderer, so it has to be mutated in place to
+  // move the view; that is not a value this component produces, and treating it
+  // as render output is what the previous useThree selector implied.
+  useFrame((state, delta) => {
+    const camera = state.camera;
 
-  useFrame((_, delta) => {
+    if (!(camera instanceof THREE.PerspectiveCamera)) {
+      throw new Error("CameraRig requires a perspective camera.");
+    }
+
+    if (!isPlacedRef.current) {
+      isPlacedRef.current = true;
+      camera.position.set(...initialState.position);
+      camera.lookAt(...initialState.target);
+      camera.fov = initialState.fov;
+      camera.updateProjectionMatrix();
+    }
+
     const values = cameraStateAtProgress(
       experienceProgressValue.current,
       reducedMotion,
