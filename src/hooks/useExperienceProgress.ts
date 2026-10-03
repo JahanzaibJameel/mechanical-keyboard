@@ -7,6 +7,10 @@ import {
   sections,
   type MeasuredSectionBox,
 } from "@/data/sections";
+import {
+  smoothScrollActive,
+  subscribeSmoothScrollFrames,
+} from "@/lib/smoothScroll";
 
 export type ExperienceProgress = {
   readonly value: { current: number };
@@ -72,14 +76,12 @@ export function useExperienceProgress(): ExperienceProgress {
     let scheduledFrame: number | null = null;
     let scheduledMeasure: number | null = null;
 
-    const updateProgress = (): void => {
-      scheduledFrame = null;
-      const maxScroll = Math.max(
-        0,
-        document.documentElement.scrollHeight - window.innerHeight,
-      );
-      const progress =
-        maxScroll === 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / maxScroll));
+    /**
+     * Single place a scroll position becomes progress, whichever engine produced
+     * it. Resolving the active section here means Lenis frames and native frames
+     * share one implementation and cannot drift.
+     */
+    const applyProgress = (progress: number): void => {
       experienceProgressValue.current = progress;
 
       const markers = document.querySelectorAll<HTMLElement>(
@@ -102,6 +104,23 @@ export function useExperienceProgress(): ExperienceProgress {
       }
 
       sceneInvalidator.current?.();
+    };
+
+    const updateProgress = (): void => {
+      scheduledFrame = null;
+
+      // While Lenis owns the scroll it is already writing window.scrollY, so
+      // reading it here would race the damper and produce a value that lags by
+      // one frame. It is published through the smooth-scroll bridge instead.
+      if (smoothScrollActive.current) {
+        return;
+      }
+
+      const maxScroll = Math.max(
+        0,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      applyProgress(maxScroll === 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / maxScroll)));
     };
 
     const scheduleUpdate = (): void => {
@@ -148,6 +167,13 @@ export function useExperienceProgress(): ExperienceProgress {
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
     motionQuery.addEventListener("change", handleMotionChange);
 
+    // Lenis frames bypass the native listener entirely and land straight in
+    // applyProgress, so a damped tail keeps producing progress after the wheel
+    // has stopped.
+    const unsubscribeSmoothScroll = subscribeSmoothScrollFrames((frame) => {
+      applyProgress(frame.progress);
+    });
+
     // Measuring the document forces the browser to perform its first full
     // layout synchronously, which costs ~170ms on a throttled mobile CPU and
     // lands inside the window where the intro copy is still waiting to paint.
@@ -169,6 +195,7 @@ export function useExperienceProgress(): ExperienceProgress {
       window.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("scroll", scheduleUpdate);
       motionQuery.removeEventListener("change", handleMotionChange);
+      unsubscribeSmoothScroll();
     };
   }, []);
 
