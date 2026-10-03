@@ -4,11 +4,13 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
 import { cameraStateAtProgress } from "@/animation/transitions/cameraTransitions";
+import { stepVelocityLean } from "@/animation/transitions/velocityLean";
 import { cameraStates } from "@/data/cameraStates";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
   experienceActiveSectionId,
   experienceProgressValue,
+  experienceScrollVelocity,
 } from "@/hooks/useExperienceProgress";
 import type { CameraStateId } from "@/types/scene";
 
@@ -23,6 +25,8 @@ export function CameraRig({
   const invalidate = useThree((state) => state.invalidate);
   const positionTarget = useRef(new THREE.Vector3());
   const lookAtTarget = useRef(new THREE.Vector3());
+  const forward = useRef(new THREE.Vector3());
+  const lean = useRef(0);
   const isPlacedRef = useRef(false);
   const initialState = cameraStates[initialStateId];
 
@@ -51,9 +55,13 @@ export function CameraRig({
       experienceActiveSectionId.current,
     );
 
+    positionTarget.current.set(...values.position);
+    lookAtTarget.current.set(...values.target);
+
     if (reducedMotion) {
-      camera.position.set(...values.position);
-      camera.lookAt(...values.target);
+      lean.current = 0;
+      camera.position.copy(positionTarget.current);
+      camera.lookAt(lookAtTarget.current);
       if (camera.fov !== values.fov) {
         camera.fov = values.fov;
         camera.updateProjectionMatrix();
@@ -63,8 +71,6 @@ export function CameraRig({
 
     const response = 1 - Math.exp(-delta * 2.5);
 
-    positionTarget.current.set(...values.position);
-    lookAtTarget.current.set(...values.target);
     camera.position.lerp(positionTarget.current, response);
     camera.lookAt(lookAtTarget.current);
 
@@ -81,7 +87,32 @@ export function CameraRig({
       camera.position.copy(positionTarget.current);
       camera.fov = values.fov;
       camera.updateProjectionMatrix();
-    } else if (distanceSq > 0.000001 || fovDelta > 0.01) {
+    }
+
+    // Applied AFTER the settle snap above, so the snap cannot wipe it, and
+    // BEFORE the lookAt below, so the offset shifts the view rather than being
+    // overwritten by it.
+    lean.current = stepVelocityLean({
+      current: lean.current,
+      velocity: experienceScrollVelocity.current,
+      delta,
+      reducedMotion,
+    });
+
+    if (lean.current !== 0) {
+      forward.current.copy(lookAtTarget.current).sub(camera.position);
+      if (forward.current.lengthSq() > 1e-12) {
+        forward.current.normalize();
+        camera.position.addScaledVector(forward.current, lean.current);
+      }
+    }
+
+    camera.lookAt(lookAtTarget.current);
+
+    // Frames have to keep being requested while the lean is still decaying,
+    // because the scroll owner has stopped emitting by then and would otherwise
+    // freeze the lean part-way home.
+    if (distanceSq > 0.000001 || fovDelta > 0.01 || lean.current !== 0) {
       invalidate();
     }
   });

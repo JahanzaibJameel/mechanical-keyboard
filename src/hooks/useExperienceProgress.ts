@@ -18,6 +18,21 @@ export type ExperienceProgress = {
 };
 
 export const experienceProgressValue = { current: 0 };
+
+/**
+ * Rate of change of the scroll position, in normalized progress units per second.
+ *
+ * Derived from the per-frame delta of the progress value inside the same loop
+ * that produces it, which is already damped by the scroll owner. There is
+ * deliberately no second damper here: Lenis owns the easing of position, and
+ * this only reports how fast that position is currently moving. Consumers apply
+ * their own response to it.
+ *
+ * A module ref rather than React state, because it is read every frame by
+ * useFrame and must never trigger a render.
+ */
+export const experienceScrollVelocity = { current: 0 };
+
 export const experienceActiveSectionId: { current: string | null } = {
   current: "intro",
 };
@@ -75,6 +90,8 @@ export function useExperienceProgress(): ExperienceProgress {
   useEffect(() => {
     let scheduledFrame: number | null = null;
     let scheduledMeasure: number | null = null;
+    let lastProgress = experienceProgressValue.current;
+    let lastProgressAt = 0;
 
     /**
      * Single place a scroll position becomes progress, whichever engine produced
@@ -82,6 +99,17 @@ export function useExperienceProgress(): ExperienceProgress {
      * share one implementation and cannot drift.
      */
     const applyProgress = (progress: number): void => {
+      const now = performance.now();
+
+      if (lastProgressAt > 0) {
+        const elapsed = (now - lastProgressAt) / 1000;
+        if (elapsed > 0) {
+          experienceScrollVelocity.current = (progress - lastProgress) / elapsed;
+        }
+      }
+      lastProgress = progress;
+      lastProgressAt = now;
+
       experienceProgressValue.current = progress;
 
       const markers = document.querySelectorAll<HTMLElement>(
