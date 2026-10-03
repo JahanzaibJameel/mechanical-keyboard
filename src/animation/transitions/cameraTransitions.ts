@@ -1,6 +1,15 @@
 import type { CameraState, CameraStateId } from "../../types/scene";
 import { cameraStates } from "../../data/cameraStates";
+import { cameraPathFor } from "../../data/cameraPaths";
 import { getSectionAtProgress, sections } from "../../data/sections";
+import { evaluateCameraPath } from "./cameraPath";
+
+/**
+ * Fraction of a section's scroll window spent blending the section's exit into
+ * the next section's enter. Enter and exit blends sum to 1 across the pair, so
+ * this closes the small remaining gap and nothing more.
+ */
+const BOUNDARY_BLEND = 0.4;
 
 function interpolate(from: number, to: number, amount: number): number {
   return from + (to - from) * amount;
@@ -42,8 +51,8 @@ export function resolveCameraStates(progress: number): ResolvedCameraStates {
       toSectionId: toSection.id,
       fromStateId: fromSection.cameraState,
       toStateId: toSection.cameraState,
-      from: cameraStates[fromSection.cameraState],
-      to: cameraStates[toSection.cameraState],
+      from: evaluateCameraPath(cameraPathFor(fromSection.id), 1),
+      to: evaluateCameraPath(cameraPathFor(toSection.id), 0),
       t: 1,
     };
   }
@@ -66,8 +75,11 @@ export function resolveCameraStates(progress: number): ResolvedCameraStates {
     toSectionId: nextSection.id,
     fromStateId: section.cameraState,
     toStateId: nextSection.cameraState,
-    from: cameraStates[section.cameraState],
-    to: cameraStates[nextSection.cameraState],
+    // from and to are now produced by evaluating the adjacent sections' paths
+    // rather than looked up in the static state table: from is where the current
+    // section's path ends, to is where the next one begins.
+    from: evaluateCameraPath(cameraPathFor(section.id), 1),
+    to: evaluateCameraPath(cameraPathFor(nextSection.id), 0),
     t: localProgress,
   };
 }
@@ -114,6 +126,17 @@ export function cameraStateAtProgress(
     return activeSection ? cameraStates[activeSection.cameraState] : pair.from;
   }
 
-  const easedAmount = pair.t * pair.t * (3 - 2 * pair.t);
-  return interpolateCameraState(pair.from, pair.to, easedAmount);
+  // Within the section, follow its own path: enter to mid to exit.
+  const alongPath = evaluateCameraPath(cameraPathFor(section.id), pair.t);
+
+  // Then blend out of the section into the next one's opening framing across the
+  // tail of the window. Without this there is a visible discontinuity at every
+  // boundary, because the two paths only meet partway between the framings.
+  if (pair.t <= 1 - BOUNDARY_BLEND) {
+    return alongPath;
+  }
+
+  const blend = (pair.t - (1 - BOUNDARY_BLEND)) / BOUNDARY_BLEND;
+  const eased = blend * blend * (3 - 2 * blend);
+  return interpolateCameraState(alongPath, pair.to, eased);
 }

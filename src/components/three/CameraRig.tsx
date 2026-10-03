@@ -1,14 +1,20 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import {
+  DRIFT_SETTLE_EPSILON,
+  cameraDriftAt,
+  driftEnvelope,
+} from "@/animation/transitions/cameraDrift";
 import { cameraStateAtProgress } from "@/animation/transitions/cameraTransitions";
 import { stepVelocityLean } from "@/animation/transitions/velocityLean";
 import { cameraStates } from "@/data/cameraStates";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import {
   experienceActiveSectionId,
+  experienceLastScrollAt,
   experienceProgressValue,
   experienceScrollVelocity,
 } from "@/hooks/useExperienceProgress";
@@ -17,6 +23,12 @@ import type { CameraStateId } from "@/types/scene";
 export type CameraRigProps = {
   readonly initialStateId?: CameraStateId;
 };
+
+/**
+ * How often the idle loop asks for a frame while the drift is running. 30Hz is
+ * ample for a 10 second cycle and costs half what an uncapped loop would.
+ */
+const IDLE_FRAME_INTERVAL_MS = 33;
 
 export function CameraRig({
   initialStateId = "intro",
@@ -27,8 +39,42 @@ export function CameraRig({
   const lookAtTarget = useRef(new THREE.Vector3());
   const forward = useRef(new THREE.Vector3());
   const lean = useRef(0);
+  const elapsed = useRef(0);
   const isPlacedRef = useRef(false);
   const initialState = cameraStates[initialStateId];
+
+  /**
+   * Keeps the renderer awake while the idle drift is running.
+   *
+   * The canvas is on frameloop="demand", so nothing would be drawn at all if the
+   * drift were left to ride on scroll frames. That is what previously made the
+   * camera bit-exact frozen whenever the visitor stopped. This loop only runs
+   * once the drift envelope is actually open, and is torn down on unmount and
+   * skipped entirely under reduced motion.
+   */
+  useEffect(() => {
+    if (reducedMotion) {
+      return;
+    }
+
+    let handle = 0;
+    let lastTick = 0;
+
+    const tick = (now: number): void => {
+      const idleTime = (now - experienceLastScrollAt.current) / 1000;
+      if (driftEnvelope(idleTime) > 0) {
+        invalidate();
+      }
+      if (now - lastTick >= IDLE_FRAME_INTERVAL_MS) {
+        lastTick = now;
+      }
+      handle = window.requestAnimationFrame(tick);
+    };
+
+    handle = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(handle);
+  }, [invalidate, reducedMotion]);
 
   // The camera is read from the frame state rather than from useThree. It is an
   // imperative object owned by the renderer, so it has to be mutated in place to
@@ -36,6 +82,7 @@ export function CameraRig({
   // as render output is what the previous useThree selector implied.
   useFrame((state, delta) => {
     const camera = state.camera;
+    elapsed.current += delta;
 
     if (!(camera instanceof THREE.PerspectiveCamera)) {
       throw new Error("CameraRig requires a perspective camera.");
@@ -107,12 +154,34 @@ export function CameraRig({
       }
     }
 
+    /**
+     * Idle drift, applied to both the position and the look-at target.
+     *
+     * MUST come before the lookAt call below. lookAt orients the camera using the
+     * position it is given, so drifting the position first and then orienting is
+     * what makes the drift visible; orienting first and then moving would leave
+     * the target orientation stale and the drift would read as the camera
+     * sliding without turning.
+     */
+    const idleTime = (performance.now() - experienceLastScrollAt.current) / 1000;
+    const drift = cameraDriftAt(elapsed.current, idleTime);
+    camera.position.x += drift.x;
+    camera.position.y += drift.y;
+    camera.position.z += drift.z;
+    lookAtTarget.current.x += drift.targetX;
+    lookAtTarget.current.y += drift.targetY;
+    lookAtTarget.current.z += drift.targetZ;
+
     camera.lookAt(lookAtTarget.current);
 
-    // Frames have to keep being requested while the lean is still decaying,
-    // because the scroll owner has stopped emitting by then and would otherwise
-    // freeze the lean part-way home.
-    if (distanceSq > 0.000001 || fovDelta > 0.01 || lean.current !== 0) {
+    // Frames have to keep being requested while the lean or the drift is still
+    // live, because the scroll owner has stopped emitting by then and would
+    // otherwise freeze them part-way.
+    const drifting =
+      Math.max(Math.abs(drift.x), Math.abs(drift.y), Math.abs(drift.z)) >
+      DRIFT_SETTLE_EPSILON;
+
+    if (distanceSq > 0.000001 || fovDelta > 0.01 || lean.current !== 0 || drifting) {
       invalidate();
     }
   });

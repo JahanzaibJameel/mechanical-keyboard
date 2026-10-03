@@ -33,6 +33,13 @@ export const experienceProgressValue = { current: 0 };
  */
 export const experienceScrollVelocity = { current: 0 };
 
+/**
+ * performance.now() at the last scroll frame. The camera's idle drift reads this
+ * to decide when the visitor has gone quiet. A module ref for the same reason as
+ * the velocity: it is sampled every frame and must never cause a render.
+ */
+export const experienceLastScrollAt = { current: 0 };
+
 export const experienceActiveSectionId: { current: string | null } = {
   current: "intro",
 };
@@ -109,6 +116,7 @@ export function useExperienceProgress(): ExperienceProgress {
       }
       lastProgress = progress;
       lastProgressAt = now;
+      experienceLastScrollAt.current = now;
 
       experienceProgressValue.current = progress;
 
