@@ -25,10 +25,16 @@ export type CameraRigProps = {
 };
 
 /**
- * How often the idle loop asks for a frame while the drift is running. 30Hz is
- * ample for a 10 second cycle and costs half what an uncapped loop would.
+ * How often the idle loop asks for a frame while the drift is running.
+ *
+ * 10Hz is deliberate. The drift is a 10 second cycle, so this is still 100
+ * samples per cycle and the motion is indistinguishable from 60Hz. It matters
+ * because the idle loop is what keeps the renderer awake, and with a
+ * postprocessing chain mounted each of those frames costs several full-screen
+ * passes. Requesting them at 30Hz would spend three times the battery for a
+ * difference nobody can see on a 0.02 unit offset.
  */
-const IDLE_FRAME_INTERVAL_MS = 33;
+const IDLE_FRAME_INTERVAL_MS = 100;
 
 export function CameraRig({
   initialStateId = "intro",

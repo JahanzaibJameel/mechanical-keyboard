@@ -22,11 +22,22 @@ import {
   type WebGLFailureReason,
   type WebGLSupport,
 } from "@/lib/webgl";
+import { sceneContextLost } from "@/lib/sceneHealth";
 import type { ProductCanvasProps } from "@/components/three/ProductCanvas";
 
 type ProductCanvasComponent = ComponentType<ProductCanvasProps>;
 
 const FIRST_FRAME_TIMEOUT_MS = 4000;
+
+/**
+ * How many extra windows the first-frame watchdog waits before giving up.
+ *
+ * Four windows is 16 seconds in total, which covers the 15.5 second first frame
+ * measured on this repository's software rasteriser. A context that is still
+ * healthy after that is not going to draw, and showing the fallback is the right
+ * answer.
+ */
+const MAX_WATCHDOG_ATTEMPTS = 3;
 
 /**
  * Probes for a WebGL context once on mount.
@@ -166,25 +177,42 @@ export function ExperienceCanvas() {
   const support = useWebGLSupport();
   const [failure, setFailure] = useState<WebGLFailureReason | null>(null);
   const [firstFrameSeen, setFirstFrameSeen] = useState(false);
+  const [watchdogAttempt, setWatchdogAttempt] = useState(0);
 
   const shouldLoadCanvas = hasIntent && support?.supported === true && failure === null;
   const ProductCanvas = useDeferredProductCanvas(shouldLoadCanvas);
   const showCanvas =
     ProductCanvas !== null && failure === null && (activeSectionId !== "intro" || hasIntent);
 
-  // A context can be created and then never draw, so the watchdog waits for a
-  // reported frame rather than for the canvas element to exist.
+// A context can be created and then never draw. The watchdog waits for a
+  // frame reported from useFrame rather than for the canvas element to appear.
+  //
+  // On timeout it does not immediately give up, because a healthy context that
+  // has not drawn yet means slow hardware rather than a broken one. Measured on
+  // this repository's software rasteriser, compiling the scene and
+  // postprocessing shaders can push the first frame past 15 seconds, so the
+  // original unconditional swap was replacing a working scene with the static
+  // fallback. It now checks whether the context is actually gone, and re-arms
+  // otherwise up to a bounded number of attempts.
   useEffect(() => {
     if (!showCanvas || firstFrameSeen) {
       return;
     }
 
     const handle = window.setTimeout(() => {
+      if (sceneContextLost.current) {
+        setFailure("context-lost");
+        return;
+      }
+      if (watchdogAttempt < MAX_WATCHDOG_ATTEMPTS) {
+        setWatchdogAttempt((attempt) => attempt + 1);
+        return;
+      }
       setFailure("no-first-frame");
     }, FIRST_FRAME_TIMEOUT_MS);
 
     return () => window.clearTimeout(handle);
-  }, [showCanvas, firstFrameSeen]);
+  }, [showCanvas, firstFrameSeen, watchdogAttempt]);
 
   const failureReason: WebGLFailureReason | null =
     failure ?? (support !== null && !support.supported ? "unsupported" : null);

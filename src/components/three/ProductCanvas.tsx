@@ -8,6 +8,7 @@ import { cameraStates } from "@/data/cameraStates";
 import { useProductConfig } from "@/hooks/useProductConfig";
 import { BRAND_BACKGROUND, CANVAS_DPR, MOBILE_LITE_PIXEL_RATIO } from "@/lib/constants";
 import { LITE_TIER_MEDIA_QUERY, resolveRenderTier, type RenderTier } from "@/lib/renderTier";
+import { sceneContextLost, sceneHasRenderedFrame } from "@/lib/sceneHealth";
 import type { ProductPartsHandle } from "@/types/parts";
 
 export type ProductCanvasProps = {
@@ -36,6 +37,7 @@ function FirstFrameSignal({ onFirstFrame }: { readonly onFirstFrame?: () => void
   const reported = useRef(false);
 
   useFrame(() => {
+    sceneHasRenderedFrame.current = true;
     if (reported.current) {
       return;
     }
@@ -64,17 +66,37 @@ function ContextLossReporter({
 
     const handleLost = (event: Event): void => {
       event.preventDefault();
+      sceneContextLost.current = true;
       onContextLost?.();
     };
 
     element.addEventListener("webglcontextlost", handleLost, false);
 
+    // Also poll the context itself, because some drivers report a lost context
+    // without dispatching the event, and because this is what tells the watchdog
+    // that a scene which has simply not drawn yet is still healthy.
+    const stopPolling = sceneHealthPoll(gl, () => {
+      if (!gl.getContext()?.isContextLost()) {
+        sceneContextLost.current = false;
+      }
+    });
+
     return () => {
       element.removeEventListener("webglcontextlost", handleLost);
+      stopPolling();
     };
   }, [gl, onContextLost]);
 
   return null;
+}
+
+/** Polls context health on a slow interval; cleared on unmount. */
+function sceneHealthPoll(
+  gl: { domElement: HTMLCanvasElement },
+  onTick: () => void,
+): () => void {
+  const handle = window.setInterval(onTick, 500);
+  return () => window.clearInterval(handle);
 }
 
 /**
@@ -135,7 +157,12 @@ export function ProductCanvas({
       }}
       style={{ background: BRAND_BACKGROUND, width: "100%", height: "100%" }}
     >
-      <ProductScene config={config} partsRef={partsRef} productRef={productRef} />
+      <ProductScene
+        config={config}
+        partsRef={partsRef}
+        productRef={productRef}
+        isLiteTier={isLite}
+      />
       <FirstFrameSignal onFirstFrame={onFirstFrame} />
       <ContextLossReporter onContextLost={onContextLost} />
     </Canvas>
