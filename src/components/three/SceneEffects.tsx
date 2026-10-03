@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import {
   Bloom,
   ChromaticAberration,
@@ -9,6 +9,7 @@ import {
 } from "@react-three/postprocessing";
 import type { DepthOfFieldEffect } from "postprocessing";
 import { Vector2, Vector3 } from "three";
+import { isSoftwareRenderer } from "@/lib/renderTier";
 
 /**
  * Cinematic pass, in order: depth of field, bloom, vignette, chromatic
@@ -144,6 +145,29 @@ export function shouldRenderEffects(
   isLiteTier: boolean,
 ): boolean {
   return !reducedMotion && !isLiteTier;
+}
+
+/**
+ * Reads the renderer's name from the live context.
+ *
+ * Read from the context R3F already owns rather than by creating a second probe
+ * context, so detection costs nothing and cannot itself fail.
+ */
+export function useRendererString(): string | null {
+  const gl = useThree((state) => state.gl);
+  const context = gl.getContext();
+  const debugInfo = context.getExtension("WEBGL_debug_renderer_info");
+
+  if (!debugInfo) {
+    return null;
+  }
+
+  return String(context.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL));
+}
+
+/** Whether this visitor is on a CPU rasteriser rather than a GPU. */
+export function useSoftwareRenderer(): boolean {
+  return isSoftwareRenderer(useRendererString());
 }
 
 /** Whether depth of field is worth its cost. Not at the open or the close. */

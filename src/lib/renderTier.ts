@@ -26,3 +26,19 @@ export const LITE_TIER_MEDIA_QUERY = `(max-width: ${MOBILE_LITE_BREAKPOINT - 1}p
 export function resolveRenderTier(viewportWidth: number): RenderTier {
   return viewportWidth < MOBILE_LITE_BREAKPOINT ? "lite" : "full";
 }
+
+/**
+ * Renderers that rasterise on the CPU rather than a GPU.
+ *
+ * These report themselves through WEBGL_debug_renderer_info, so detection is a
+ * string match rather than a heuristic. Matched case-insensitively against the
+ * common SwiftShader, llvmpipe and Microsoft Basic Render Driver strings.
+ */
+const SOFTWARE_RENDERER_PATTERN = /swiftshader|llvmpipe|software|microsoft basic/i;
+
+export function isSoftwareRenderer(renderer: string | null | undefined): boolean {
+  if (!renderer) {
+    return false;
+  }
+  return SOFTWARE_RENDERER_PATTERN.test(renderer);
+}
