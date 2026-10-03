@@ -51,9 +51,15 @@ const reports = files.map((name) => {
   };
 });
 
+// Average the two middle values for an even run count. Taking
+// sorted[floor(n / 2)] instead would return the upper middle element and
+// overstate the median for any even number of runs.
 const median = (values) => {
   const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)];
+  const middle = sorted.length / 2;
+  return sorted.length % 2 === 1
+    ? sorted[Math.floor(middle)]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
 console.log(`Lighthouse budget over ${reports.length} run(s) from ${reportDir}\n`);

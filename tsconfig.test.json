@@ -1,0 +1,26 @@
+{
+  "$comment": [
+    "Companion to tsconfig.json, used by `npm run typecheck:tests`.",
+    "The main tsconfig excludes tests/e2e because those specs import",
+    "@playwright/test and run under Playwright's own tsconfig resolution, not",
+    "Next's. That left them with no type checking at all: `tsc --noEmit` skipped",
+    "them and eslint does not type check. This config includes them so the CI",
+    "typecheck step covers every TypeScript file in the repository.",
+    "Run after `npm run build`, because it extends the root config's include of",
+    ".next/types which Next generates during the build."
+  ],
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "tests/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".kilo", ".next/cache"]
+}

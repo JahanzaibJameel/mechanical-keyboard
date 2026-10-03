@@ -38,3 +38,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # Must follow the build: tsconfig.test.json extends the root config, which
+      # includes .next/types that Next generates during the build. This is the
+      # only type checking the e2e specs get; tsconfig.json excludes them.
+      - name: Typecheck tests
+        run: npm run typecheck:tests
