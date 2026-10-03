@@ -16,11 +16,11 @@ describe("camera transitions", () => {
     });
   });
 
-  it("resolves the final product-to-finale pair at progress one", () => {
+  it("resolves the final exploded-to-finale pair at progress one", () => {
     expect(resolveCameraStates(1)).toMatchObject({
       fromSectionId: "finalProduct",
       toSectionId: "finale",
-      fromStateId: "finale",
+      fromStateId: "exploded",
       toStateId: "finale",
       t: 1,
     });

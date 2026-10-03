@@ -11,5 +11,5 @@ export const cameraStates: Readonly<Record<CameraStateId, CameraState>> = {
   switchMacro: { position: [0.3, 0.95, 1.9], target: [0, 0.28, 0], fov: 26 },
   keycapMacro: { position: [0.15, 2.35, 1.5], target: [0, 0.42, 0], fov: 22 },
   configurator: { position: [0, 1.8, 6.1], target: [0, 0.4, 0], fov: 38 },
-  finale: { position: [0, 1.6, 5.8], target: [0, 0.35, 0], fov: 36 },
+  finale: { position: [0, 1.5, 8.2], target: [0, 0.35, 0], fov: 36 },
 };

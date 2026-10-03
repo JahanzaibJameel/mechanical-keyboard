@@ -107,7 +107,7 @@ const sectionTable: SectionTableEntry[] = [
   { id: "keycaps", label: "Keycaps", timelineStart: 0.72, timelineEnd: 0.78, cameraState: "keycapMacro" },
   { id: "performance", label: "Performance", timelineStart: 0.78, timelineEnd: 0.84, cameraState: "side" },
   { id: "configurator", label: "Configurator", timelineStart: 0.84, timelineEnd: 0.92, cameraState: "configurator" },
-  { id: "finalProduct", label: "Final product", timelineStart: 0.92, timelineEnd: 0.97, cameraState: "finale" },
+  { id: "finalProduct", label: "Final product", timelineStart: 0.92, timelineEnd: 0.97, cameraState: "exploded" },
   { id: "finale", label: "Finale", timelineStart: 0.97, timelineEnd: 1, cameraState: "finale" },
 ];
 
@@ -252,8 +252,8 @@ export const sectionCopy: Readonly<Record<SectionId, SectionCopy>> = {
   finale: {
     eyebrow: "12 / FINALE",
     title: "NØR 75",
-    body: "Precision in motion.",
-    details: ["Explore NØR"],
+    body: "PRECISION IN MOTION",
+    details: ["EXPLORE NØR →"],
   },
 };
 
