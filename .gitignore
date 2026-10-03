@@ -10,6 +10,7 @@ next-env.d.ts
 # Lighthouse reports. These are per-run measurement artefacts, several hundred
 # kilobytes each; the numbers that matter are recorded in docs/performance.md.
 .lighthouse-*.json
+.lighthouse-ci/
 .lh-g-*.json
 .lh-h-*.json
 

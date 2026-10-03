@@ -1,0 +1,64 @@
+name: Lighthouse
+
+on:
+  push:
+    branches: [main, master]
+  # Serialise budget runs so several jobs never compete for the same CPU, which
+  # would depress every score at once.
+  workflow_dispatch:
+
+concurrency:
+  group: lighthouse-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  budget:
+    name: performance budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Server and Lighthouse run in one step so the background process is
+      # scoped to it. Lighthouse's exit code is not the gate: on Windows it
+      # returns non-zero for an EPERM while deleting its temporary Chrome
+      # profile, after writing the report. The report contents are the gate.
+      - name: Measure
+        run: |
+          npm run start &
+          npx --yes wait-on http://localhost:3000 -t 90000
+          mkdir -p .lighthouse-ci
+          for run in 1 2 3; do
+            npx --yes lighthouse http://localhost:3000 \
+              --output=json \
+              --output-path=".lighthouse-ci/run-$run.json" \
+              --only-categories=performance,accessibility,best-practices,seo \
+              --chrome-flags="--no-sandbox --headless=new" \
+              --quiet || true
+          done
+
+      - name: Assert budget
+        run: node .github/scripts/assert-lighthouse-budget.mjs .lighthouse-ci
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouse-ci/
+          retention-days: 14
