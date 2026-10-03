@@ -62,15 +62,33 @@ From `src/data/cameraStates.ts`:
 | --- | --- | --- | --- | --- |
 | `intro` | 0, 2.1, 8 | 0, 0.35, 0 | 42 | 01 |
 | `hero` | 0, 1.2, 5 | 0, 0.4, 0 | 35 | 02 |
-| `threeQuarter` | 3.2, 2.4, 4.8 | 0, 0.35, 0 | 36 | 03, **05** |
+| `threeQuarter` | 3.2, 2.4, 4.8 | 0, 0.35, 0 | 36 | 03 |
 | `macro` | 0.3, 2.4, 2.8 | 0, 0.28, 0 | 28 | 04 |
-| `exploded` | 0, 3.6, 7.2 | 0, 0.8, 0 | 40 | 06, **11** |
+| `colors` | 2.95, 0.72, 2.35 | 1.35, 0.12, 0.55 | 32 | 05 |
+| `exploded` | 0, 3.6, 7.2 | 0, 0.8, 0 | 40 | 06 |
 | `switchMacro` | 0.3, 0.95, 1.9 | 0, 0.28, 0 | 26 | 07 |
 | `keycapMacro` | 0.15, 2.35, 1.5 | 0, 0.42, 0 | 22 | 08 |
 | `side` | 5.8, 1.1, 0.2 | 0, 0.3, 0 | 30 | 09 |
 | `configurator` | 0, 1.8, 6.1 | 0, 0.4, 0 | 38 | 10 |
+| `reassembly` | 0, 2.35, 7.8 | 0, 0.55, 0 | 34 | 11 |
 | `finale` | 0, 1.5, 8.2 | 0, 0.35, 0 | 36 | 12 |
-| `top` | 0, 7.2, 0.15 | 0, 0.25, 0 | 38 | **unassigned** |
+
+Twelve sections, twelve distinct states, no duplicates and no orphans. Four unit
+tests in `tests/unit/cameraTransitions.test.ts` assert exactly that, so adding a
+section without a state of its own fails the suite.
+
+The former `top` state was deleted. It was unassigned, and at
+`[0, 7.2, 0.15]` it looked 1.24° off vertical, giving a cross product with the
+default up vector of 0.0216 against 0.36–0.99 for every other state. That is
+degenerate for `Matrix4.lookAt`, where there is no unique right vector, so roll is
+arbitrary and swings under small camera moves. A unit test now rejects any state
+within 0.3 of that singularity.
+
+`colors` targets z 0.55, clear of the keycap field which spans z −0.475…0.475,
+and y 0.12 on the case side wall, so the finish fills the frame. `reassembly` is
+framed to hold the whole travel of the collapsing stack: at full separation the
+keycaps reach y 1.13, and at 7.8 units with fov 34 the vertical extent is about
+4.8 units.
 
 Transitions interpolate across a section's whole window, smoothstepped. Reduced
 motion jumps to the active section's state with no interpolation at all.
@@ -99,7 +117,8 @@ flat-shaded case box. See [3d-pipeline.md](3d-pipeline.md).
 
 **05 Colors.** A case-finish preview selector wired to the shared config store,
 so choosing here changes the case material immediately and carries into Section
-10. Camera holds `threeQuarter` — the same state as Section 03.
+10. Camera takes its own low three-quarter onto the case edge, distinct from
+Section 03's higher `threeQuarter`.
 
 **06 Construction.** The centrepiece. Camera pulls back to `exploded` at fov 40
 and the five layers separate top-down: KEYCAPS → SWITCHES → PLATE → PCB → CASE,
@@ -119,7 +138,10 @@ identical boxes.
 
 **09 Performance.** Camera moves to a side elevation at fov 30. Three counters —
 1000 Hz, 2.4 GHz, 4000 mAh — animate from 0 over 1.5 s when the section scrolls
-into view, and show final values immediately under reduced motion.
+into view, and show final values immediately under reduced motion. Below them,
+the full specification table renders as text: layout, connectivity, polling,
+battery, case, keycaps, dimensions and weight. It is bound to the canvas by
+`aria-describedby`, so it is the screen-reader equivalent of the scene.
 
 **10 Configurator.** Tallest section at `min-h-[180dvh]` with a sticky panel, so
 the camera settles while the controls stay put. Full case, keycap and switch
@@ -127,7 +149,8 @@ selection with a live summary, plus a reset. Selection persists to
 `sessionStorage` and clears per tab. Explosion still holds at 1.
 
 **11 Reassembly.** The explosion reverses, 1 → 0, smoothstepped, across the
-section. Camera holds `exploded` — the same state as Section 06.
+section. Camera holds its own pulled-back `reassembly` framing, wide enough to keep
+the whole stack in view from separated through to assembled.
 
 **12 Finale.** Minimal, as specified: brand, tagline and one CTA back to the top.
 Camera eases back to `finale` at fov 36, the widest framing in the schedule
@@ -136,9 +159,8 @@ after `intro`.
 ## Where this diverges from the intended design
 
 - **The product is placeholder geometry.** Every beat above describes camera work
-  on a 78-box stand-in, not a modelled keyboard.
-- **Five sections do not have a dedicated camera state.** Colors duplicates 03,
-  Reassembly duplicates 06, and `top` is defined but assigned to nothing.
+  on a 78-box stand-in, not a modelled keyboard. This is Tier 4 work and is
+  untouched.
 - **Sections 01, 03, 04, 05, 06, 08, 11 and 12 share one DOM template** —
   eyebrow, `h2`, paragraph, list. Only the copy and the horizontal alignment
   differ. The macro sections have no scene beat to distinguish them.

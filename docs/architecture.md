@@ -114,18 +114,51 @@ hero is rendered inside the fixed canvas layer and is therefore a sibling of
 
 ## Known inconsistencies
 
-- `src/components/sections/Performance/index.tsx` is the only section that does
-  not read from `sectionCopy`. Its eyebrow, title and body are inlined in the
-  component, so `sectionCopy.performance` in `src/data/sections.ts` is dead copy
-  that has to be kept in sync by hand.
-- `src/lib/constants.ts` exports `MOBILE_LITE_BREAKPOINT`,
-  `MOBILE_LITE_PIXEL_RATIO`, `MATERIAL_TRANSITION_LAMBDA` and
-  `MATERIAL_SETTLE_EPSILON`. None of the four has a consumer. They describe a
-  mobile degradation tier and a damped material transition that were never built.
-- `src/three/materials/`, `src/three/shaders/**` and `src/three/loaders/` exist
-  as empty directories.
+- `src/components/sections/Performance/index.tsx` inlines its own eyebrow, title
+  and body rather than reading `sectionCopy.performance`, so that entry in
+  `src/data/sections.ts` is dead copy kept in sync by hand.
+- `src/lib/constants.ts` exports `MATERIAL_TRANSITION_LAMBDA` and
+  `MATERIAL_SETTLE_EPSILON`. Neither has a consumer: they describe a damped
+  material transition that was never implemented. Material changes are
+  declarative prop swaps.
+- `src/three/materials/` is an empty directory. Surface values live in
+  `src/data/materials.ts`, which is self-declared placeholder data.
+- `src/three/shaders/**` and `src/three/loaders/` are empty directories.
+- `src/three/utils/` is an empty directory.
 
-## What is not here
+## Type checking
+
+Two configs, because the e2e specs need different settings from the app.
+
+| Config | Covers | Command |
+| --- | --- | --- |
+| `tsconfig.json` | app and unit tests; **excludes `tests/e2e`** | `npm run typecheck` |
+| `tsconfig.test.json` | everything, including `tests/e2e` | `npm run typecheck:tests` |
+
+`tsconfig.test.json` extends the root config and re-includes the e2e specs. It
+exists because excluding them left them with no type checking at all: `tsc` skipped
+them and ESLint does not type check. It has already caught three real errors that
+reached a commit otherwise, including a Playwright spec passing a `Page` where its
+own signature declared a `Locator`.
+
+Run `npm run typecheck:tests` **after** `npm run build`, because it inherits the
+root config's include of `.next/types`, which Next generates during the build. CI
+orders the steps that way.
+
+## Degradation and capability detection
+
+Three mechanisms, all client-side, none of which run during server rendering
+because the 3D subtree only mounts after user intent.
+
+| Concern | Module | Behaviour |
+| --- | --- | --- |
+| WebGL availability | `src/lib/webgl.ts` | Probes `webgl2`, then `webgl`, then `experimental-webgl` on a throwaway canvas, releasing the context before returning so it does not count against the browser's live-context budget. If none is available the Three.js bundle is never imported. |
+| Context loss | `src/components/three/ProductCanvas.tsx` | `webglcontextlost` on the canvas, with `preventDefault()` so the context stays restorable. Swaps to `WebGLFallback`. |
+| First-frame watchdog | `src/components/three/ExperienceCanvas.tsx` | Waits 4000 ms for a frame reported from `useFrame`. A context can be created and then never draw, so this waits for a frame rather than for the canvas element. |
+| Render tier | `src/lib/renderTier.ts` | Below 768 px: device pixel ratio pinned to 1 and antialiasing off. Resolved **before** the `Canvas` mounts, because R3F constructs the renderer once and does not re-apply the `gl` options afterwards. |
+
+The fallback renders in the same stacking position as the canvas, so the hero and
+all page copy stay readable over it.
 
 - No state management library. No Redux, Zustand or context beyond
   `ActiveSectionContext`, which exists only to pass the active section id to the
@@ -133,3 +166,6 @@ hero is rendered inside the fixed canvas layer and is therefore a sibling of
 - No smooth-scroll library. Scrolling is native and progress is read from
   `window.scrollY`.
 - No asset pipeline. See [3d-pipeline.md](3d-pipeline.md).
+- No state for capability detection. WebGL support, context loss, the first-frame
+  watchdog and the render tier are plain module functions and hooks, so they can be
+  unit tested without a DOM.

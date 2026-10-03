@@ -77,18 +77,24 @@ clicking in Section 07 is reflected in Section 10 and vice versa. The summary
 `<dl>` in the configurator re-renders, but it is not an `aria-live` region, so a
 screen reader is not told the summary changed.
 
-## Focus indicators — known gap
+## Focus indicators
 
-Visible focus styling is present on: configurator and selector buttons
-(`focus-visible:outline-2 focus-visible:outline-offset-2
-focus-visible:outline-white`), the Section 07 press button, the reset button,
-and the section-rail links.
+Visible focus styling is present on: both primary navigation link sets, the
+configurator and selector buttons, the Section 07 press button, the reset button,
+and the section-rail links. All use
+`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`.
 
-**The two primary navigation link sets have no `focus-visible` styling.**
-`Navigation.tsx` gives them `transition-colors hover:text-white` and nothing
-else, so a keyboard user tabbing the primary nav falls back to the user-agent
-default focus ring. Lighthouse does not test focus visibility, which is why this
-does not show up in the score above.
+Verified by keyboard only, using real Tab presses rather than `element.focus()`,
+because `:focus-visible` only matches when the browser decides the focus came from
+the keyboard. Thirteen nav stops were visited — the brand link plus all twelve
+section links — and every one reported `:focus-visible` matching,
+`outline-style: solid`, `outline-width: 2px`, `outline-offset: 2px`, and a settled
+`outline-color` of `rgb(255, 255, 255)`. That is roughly 19.6:1 against the
+`#080808` header, far above the 3:1 that WCAG 2.2 SC 1.4.11 requires of a focus
+indicator.
+
+Lighthouse does not test focus visibility, so this is covered by an e2e check
+rather than by the audit scores.
 
 ## Reduced motion
 
@@ -111,27 +117,53 @@ transitions come from `SiteShell`'s class toggles, which all carry
 `motion-reduce:transition-none`, so the state still changes but does not
 interpolate.
 
-Verified end to end for Section 09 by `tests/e2e/viewport.test.ts`, which
-re-runs the page in a `prefers-reduced-motion: reduce` context and asserts the
-three counters show their final values. **Not verified for the other eleven
-sections** — there is no automated coverage for them.
+`tests/e2e/reduced-motion.test.ts` walks all twelve sections in a real
+`prefers-reduced-motion: reduce` context and checks, per section, that it renders,
+that the canvas is present with a non-zero drawing buffer, that any
+section-specific animation has reached its final value, and that nothing logged a
+console or page error. Every case asserts `matchMedia` reports `reduce` before
+trusting a result, which is the failure mode that made the original section-09
+check pass vacuously.
+
+Two of those checks discriminate reduced motion from motion-on, confirmed by
+running the same spec with `no-preference`: section 09 fails, because its counters
+are still animating at the 400 ms sample point, and section 02's clip-path check
+fails, because the headline is still clipped. The other ten verify rendering and
+console cleanliness, which is real coverage but would not by itself catch a camera
+or explosion regression — the scene internals are not reachable from the page.
 
 ## Text alternative for the 3D product
 
-Partial, and this is the largest accessibility gap.
+`src/data/specs.ts` holds the specification as data, and
+`src/components/sections/Performance/SpecTable.tsx` renders it at the end of
+section 09 as a semantic `<table>`: a caption, two `scope="col"` headers, and one
+row per spec with `scope="row"` for the label.
 
-What exists as text: the layer list in Section 06 (`KEYCAPS`, `SWITCHES`,
-`PLATE`, `PCB`, `CASE`), the configured-spec `<dl>` in Section 10, and the three
-numeric specs in Section 09.
+The canvas layer is bound to it rather than merely placed near it. The fixed
+container holding the WebGL canvas carries `aria-describedby="nor75-spec"`.
+Verified by resolving the reference the way assistive technology would: the
+attribute is present, its id resolves to the spec table specifically, and that
+element exposes 207 characters of description text.
 
-What does not: a consolidated spec table (layout, dimensions, weight,
-connectivity, materials), and any accessible name or description bound to the
-canvas. `ProductCanvas.tsx`, `ProductScene.tsx` and `Environment.tsx` contain no
-accessible text. A screen-reader user gets the twelve sections of copy and no
-equivalent of the scene.
+`Weight` reads "Not yet specified" rather than a number. Nothing in the codebase
+knows what the keyboard weighs, and inventing a figure in an accessibility
+document would be worse than recording the gap. That same sentinel keeps the row
+out of the JSON-LD `additionalProperty` array, so a placeholder is never published
+as a fact.
 
-There is also no fallback for a visitor without WebGL, so the product is simply
-absent for them — see [3d-pipeline.md](3d-pipeline.md).
+## Degradation
+
+A visitor without WebGL, or whose context is lost mid-scroll, is not left with an
+empty dark field. `WebGLFallback` renders the product still, the brand, a
+reason-specific explanation, and a pointer to the specification in section 09, in
+the same stacking position as the canvas so the hero and page copy stay readable
+over it. The image carries descriptive alt text. Three triggers are covered and
+tested in `tests/e2e/webgl-fallback.test.ts`: context-creation failure,
+`webglcontextlost`, and the first-frame timeout.
+
+## Text alternative for the 3D product
+
+See the dedicated section above.
 
 ## Decorative elements
 
@@ -162,9 +194,10 @@ and did not run.
 
 ## Not verified
 
-- Focus order termination and visibility across the full page, by keyboard
-  walkthrough.
-- Screen-reader announcement of the configurator summary changes.
+- Focus order termination across the full page, beyond the thirteen navigation
+  stops measured above.
+- Screen-reader announcement of the configurator summary changes; it is not an
+  `aria-live` region.
 - Zoom to 400% and reflow.
 - Whether the hidden-section pattern (opacity 0, still in the accessibility tree)
   is acceptable; `aria-hidden` is applied to the hero but not to inactive

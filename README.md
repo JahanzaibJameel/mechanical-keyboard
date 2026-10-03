@@ -54,17 +54,20 @@ Two rules carry most of the weight:
 ## Commands
 
 ```bash
-npm run dev        # development server on :3000
-npm run build      # production build
-npm run start      # serve the production build (required before e2e)
-npm run lint       # eslint
-npm run typecheck  # tsc --noEmit
-npm test           # vitest unit suite (tests/unit)
-npm run e2e        # playwright suite (tests/e2e, starts the server itself)
+npm run dev             # development server on :3000
+npm run build           # production build
+npm run start           # serve the production build (required before e2e)
+npm run lint            # eslint
+npm run typecheck       # tsc --noEmit over the app and unit tests
+npm run typecheck:tests # tsc over everything including tests/e2e; run after build
+npm test                # vitest unit suite (tests/unit)
+npm run e2e             # playwright suite (tests/e2e, starts the server itself)
 ```
 
 The e2e suite and Lighthouse both measure the production build, so run
-`npm run build` before either.
+`npm run build` before either. `npm run typecheck:tests` inherits the root
+config's include of `.next/types`, which Next generates during the build, so it
+must also run after it. See [docs/architecture.md](docs/architecture.md#type-checking).
 
 ## Current status
 
@@ -73,22 +76,32 @@ of truth for this section; the short version:
 
 **Working and verified**
 
-- Twelve sections render real, distinct copy. Nine of twelve have a dedicated
-  camera state; Colors shares `threeQuarter` with Product reveal and Reassembly
-  shares `exploded` with Construction.
+- Twelve sections render real, distinct copy, and every section has its own camera
+  state — twelve sections, twelve states, no duplicates and no orphans, asserted
+  by unit tests.
 - Exploded view separates the five layers in the specified order
   (KEYCAPS → SWITCHES → PLATE → PCB → CASE) and Section 11 reverses it. Both are
   covered by unit tests.
-- The configurator persists to `sessionStorage` and resets per tab. Case and
-  keycap selections repaint the model immediately.
+- The configurator persists to `sessionStorage` and resets per tab. Case, keycap
+  and switch selections all repaint the model immediately; the switch types are
+  measurably distinct in the render.
 - The hero switch is pressable by pointer, touch and keyboard, with the press
   state shared between the WebGL mesh and the DOM button.
+- Three degradation paths are implemented and tested: no WebGL context, context
+  loss mid-scroll, and a first-frame timeout. Each shows a static product image,
+  the brand, an explanation, and a pointer to the specification, with the rest of
+  the page still readable.
+- A mobile tier renders below 768 px at a pinned device pixel ratio of 1 with
+  antialiasing off.
+- The specification is available as a semantic table bound to the canvas by
+  `aria-describedby`, so there is a text equivalent of the scene.
 - Lighthouse: Accessibility 100, Best Practices 100, SEO 100. Performance varies
-  roughly 0.77–0.95 on the development host depending on CPU contention; the
-  blueprint target is 85 or better. See [docs/performance.md](docs/performance.md).
-- `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` all exit
-  zero. `npm run e2e` passes: 3 tests, including a 60-second scroll soak with a
-  0 MB heap delta.
+  with host CPU contention; the blueprint target is 85 or better and the current
+  median is above it. See [docs/performance.md](docs/performance.md).
+- `npm run lint`, `npm run typecheck`, `npm run typecheck:tests`, `npm test` and
+  `npm run build` all exit zero. `npm run e2e` passes 19 tests across 5 specs,
+  including a 60-second scroll soak with a 0 MB heap delta and a reduced-motion
+  walk over all twelve sections.
 
 **Not built**
 
@@ -96,36 +109,31 @@ of truth for this section; the short version:
   GLB. `ProductParts.tsx` assembles the keyboard from 78 untextured
   `boxGeometry` primitives — 1 case, 1 plate, 1 PCB, 75 switches, 75 keycaps.
   The keycap and material copy describes a sculpt and a PBT texture that exist
-  only in prose.
-- **No degradation tiers.** There is no WebGL fallback, no static fallback
-  imagery, no context-loss or context-creation-failure handling, and no
-  first-frame timeout. `MOBILE_LITE_BREAKPOINT` and `MOBILE_LITE_PIXEL_RATIO`
-  are declared in `src/lib/constants.ts` and consumed by nothing. A visitor
-  without WebGL gets the copy and no product.
+  only in prose. This is Tier 4 and is untouched.
 - **No material pipeline.** `src/three/materials/` is empty. Surface values come
   from `src/data/materials.ts`, which is self-declared placeholder data.
-- **Switch type has no visual effect.** All three options resolve to one
-  identical material.
 - **No shaders or post-processing.** `src/three/shaders/**` is empty; there is no
   GLSL in the codebase and no `postprocessing` dependency. No custom cursor, no
   magnetic buttons, no Lenis smooth scroll — scrolling is native.
-- **The SEO surface is a shell.** Title, description and `metadataBase` only.
-  No canonical URL, no `sitemap.ts`, no `robots.txt`, no Product JSON-LD, no
-  icons in `public/icons/`, and the OG image is still an inline SVG with Arial
-  text. Lighthouse SEO is 100 anyway, because that category does not require
-  any of it.
-- **Switch type, `MATERIAL_TRANSITION_LAMBDA` and `MATERIAL_SETTLE_EPSILON`**
-  are declared but unused. Material changes are declarative prop swaps, so there
-  is no damped transition in normal mode and nothing to suppress in reduced mode.
+- **Camera and explosion regressions are not fully covered.** Reduced motion is
+  discriminated by test for the Performance counters and the hero headline; the
+  other ten sections are verified to render and log nothing, but the scene
+  internals are not reachable from the page, so a camera regression there would
+  not be caught.
+- **The configurator uses `aria-pressed` in three groups rather than radio
+  inputs.** Announced correctly and fully keyboard operable, but arrow-key roving
+  focus is not implemented, because each option is its own tab stop.
 
 **Also note**
 
-- `docs/pre-development-spec.md` and `docs/storyboard.md` are three-line
-  placeholders. The original blueprint documents are not in this repository; the
-  surviving specification is the milestone protocol in `.cursorrules`.
-- Milestone J (Tier 3 fallback + SEO) and Milestone K (final QA) are unstarted.
+- `docs/pre-development-spec.md` is a three-line placeholder. The original
+  blueprint documents are not in this repository; the surviving specification is
+  the milestone protocol in `.cursorrules`, which covers milestones E through K.
 - The repository history begins at Milestone G. Milestones 0–F have no commits
   and no recoverable gate output.
+- `.env.local` is committed on purpose: it holds `NEXT_PUBLIC_SITE_URL`, a public
+  non-secret value that `metadataBase` needs to be deterministic. Replace the
+  placeholder host at deploy time.
 
 ## Documentation
 
