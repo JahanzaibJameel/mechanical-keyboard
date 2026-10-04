@@ -3,6 +3,10 @@ import { useEffect, useRef, type RefObject } from "react";
 import { Mesh, type Object3D } from "three";
 import type { ProductMotionTarget } from "@/animation/config";
 import { EXPLODED_OFFSETS } from "@/animation/timelines/constructionTimeline";
+import {
+  layerExplosion,
+  type ExplosionLayer,
+} from "@/animation/timelines/explosionStagger";
 import { updateProductTimeline } from "@/animation/timelines/productTimeline";
 import { getSectionLocalProgress } from "@/animation/transitions/sectionTransitions";
 import { caseMaterials, keycapMaterials, switchMaterials } from "@/data/materials";
@@ -31,6 +35,8 @@ type PositionedObject = {
 
 type ExplodedRigPart = {
   readonly key: "case" | "plate" | "pcb" | "switches" | "keycaps";
+  /** Same identity as key, named for the stagger schedule it selects. */
+  readonly layer: ExplosionLayer;
   readonly assembledY: number;
   readonly offset: number;
 };
@@ -97,16 +103,18 @@ export function computeExplodedState(progress: number): number {
  * per part. Offsets come from the construction timeline.
  */
 const EXPLODED_RIG: readonly ExplodedRigPart[] = [
-  { key: "case", assembledY: PART_DIMENSIONS.case.y, offset: EXPLODED_OFFSETS.case ?? 0 },
-  { key: "plate", assembledY: PART_DIMENSIONS.plate.y, offset: EXPLODED_OFFSETS.plate ?? 0 },
-  { key: "pcb", assembledY: PART_DIMENSIONS.pcb.y, offset: EXPLODED_OFFSETS.pcb ?? 0 },
+  { key: "case", layer: "case", assembledY: PART_DIMENSIONS.case.y, offset: EXPLODED_OFFSETS.case ?? 0 },
+  { key: "plate", layer: "plate", assembledY: PART_DIMENSIONS.plate.y, offset: EXPLODED_OFFSETS.plate ?? 0 },
+  { key: "pcb", layer: "pcb", assembledY: PART_DIMENSIONS.pcb.y, offset: EXPLODED_OFFSETS.pcb ?? 0 },
   {
     key: "switches",
+    layer: "switches",
     assembledY: PART_DIMENSIONS.switchRow.baseY,
     offset: EXPLODED_OFFSETS.switch ?? 0,
   },
   {
     key: "keycaps",
+    layer: "keycaps",
     assembledY: PART_DIMENSIONS.keycap.baseY,
     offset: EXPLODED_OFFSETS.keycap ?? 0,
   },
@@ -200,7 +208,12 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
       if (!object) {
         continue;
       }
-      object.position.y = part.assembledY + part.offset * explodedRef.current;
+      // Each layer has its own start offset within the section and its own
+      // overshoot, rather than all five sharing one scalar. The shared amount
+      // from computeExplodedState is unchanged, so the schedule and the existing
+      // tests are untouched; only the per-layer timing is new.
+      object.position.y =
+        part.assembledY + part.offset * layerExplosion(part.layer, explodedRef.current);
     }
 
     const heroSwitch = heroSwitchRef.current;
