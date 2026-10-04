@@ -13,19 +13,61 @@ import { Environment } from "@react-three/drei";
  * with drei's useEnvironment via the files prop, so there is no network fetch at
  * runtime and no remote CDN dependency.
  *
- * `environmentIntensity` is tuned down from the default so the case reads as
- * anodized aluminium rather than chrome. The HDRI is a bright studio box, and at
- * full intensity a metalness 0.85 surface mirrors it directly and blows out.
+ * It is dropped on a software renderer. Measured on this repository's software
+ * rasteriser, adding the environment map took the desktop frame cost from about
+ * 47ms to about 124ms, because every material then samples the map. A CPU
+ * rasteriser cannot afford that, so Tier 3 falls back to the three-light rig the
+ * scene used before image-based lighting existed. The environment is for a GPU.
  *
- * `background` is left false, which is drei's default: the environment map is
- * used for reflections only and the scene keeps the flat near-black background
- * the canvas sets. The studio box is never visible behind the product.
+ * `background` is left false, drei's default, so the map is used for reflections
+ * only and the scene keeps the flat near-black background the canvas sets. The
+ * studio box is never visible behind the product.
  */
 
 /** Local 1K CC0 studio HDRI. Verified against the Poly Haven published md5. */
 const HDRI_FILE = "/textures/hdr/studio-softbox.hdr";
 
-export function SceneEnvironment() {
+/**
+ * How the scene is lit on a given renderer. One decision, both branches.
+ */
+export type SceneLighting = {
+  /** Whether the HDRI is mounted at all. */
+  readonly hdri: boolean;
+  readonly ambientIntensity: number;
+  readonly keyIntensity: number;
+  readonly fillIntensity: number;
+};
+
+/**
+ * With image-based lighting the HDRI supplies most of the ambient contribution,
+ * so the lights only shape the key. Without it they have to carry the scene on
+ * their own, which is why the software branch uses the higher original values.
+ */
+export function resolveSceneLighting(softwareRenderer: boolean): SceneLighting {
+  if (softwareRenderer) {
+    return {
+      hdri: false,
+      ambientIntensity: 0.6,
+      keyIntensity: 1.2,
+      fillIntensity: 0.4,
+    };
+  }
+
+  return {
+    hdri: true,
+    ambientIntensity: 0.25,
+    keyIntensity: 1.1,
+    fillIntensity: 0.35,
+  };
+}
+
+export function SceneEnvironment({
+  softwareRenderer,
+}: {
+  readonly softwareRenderer: boolean;
+}) {
+  const lighting = resolveSceneLighting(softwareRenderer);
+
   return (
     <>
       {/*
@@ -37,12 +79,14 @@ export function SceneEnvironment() {
         intermittently. With a local boundary only this subtree suspends, the
         three lights below are unaffected, and the scene renders immediately.
       */}
-      <Suspense fallback={null}>
-        <Environment files={HDRI_FILE} environmentIntensity={0.55} background={false} />
-      </Suspense>
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[5, 5, 5]} intensity={1.1} />
-      <directionalLight position={[-5, 2, -5]} intensity={0.35} />
+      {lighting.hdri ? (
+        <Suspense fallback={null}>
+          <Environment files={HDRI_FILE} environmentIntensity={0.55} background={false} />
+        </Suspense>
+      ) : null}
+      <ambientLight intensity={lighting.ambientIntensity} />
+      <directionalLight position={[5, 5, 5]} intensity={lighting.keyIntensity} />
+      <directionalLight position={[-5, 2, -5]} intensity={lighting.fillIntensity} />
     </>
   );
 }

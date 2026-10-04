@@ -48,13 +48,15 @@ export function ProductScene({
   // depth of field, because measured against this repository's software
   // rasteriser nothing in the chain comes near a 10ms budget: the composer alone
   // costs about 25ms, chromatic aberration and vignette together about 156ms,
-  // bloom about 153ms and depth of field about 828ms.
+  // bloom about 153ms and depth of field about 828ms. It also drops the HDRI,
+  // which took the desktop frame cost from about 47ms to about 124ms because
+  // every material then samples the environment map.
   const effectsEnabled =
     motionResolved && !softwareRenderer && shouldRenderEffects(reducedMotion, isLiteTier);
 
   return (
     <>
-      <SceneEnvironment />
+      <SceneEnvironment softwareRenderer={softwareRenderer} />
       <CameraRig initialStateId="intro" />
       <ProductParts config={config} partsRef={partsRef} productRef={productRef} />
       {effectsEnabled ? (

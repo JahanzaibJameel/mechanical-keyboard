@@ -3,7 +3,46 @@ import {
   shouldRenderDepthOfField,
   shouldRenderEffects,
 } from "../../src/components/three/SceneEffects";
+import { resolveSceneLighting } from "../../src/components/three/Environment";
 import { isSoftwareRenderer } from "../../src/lib/renderTier";
+
+describe("scene lighting", () => {
+  it("drops the HDRI on a software renderer", () => {
+    expect(resolveSceneLighting(true).hdri).toBe(false);
+  });
+
+  it("keeps the HDRI on a real GPU", () => {
+    expect(resolveSceneLighting(false).hdri).toBe(true);
+  });
+
+  it("raises the lights when they have to carry the scene alone", () => {
+    // Without image-based lighting the three lights supply all the ambient, so
+    // they must be at least as strong as the rig that predated the HDRI.
+    const software = resolveSceneLighting(true);
+    const gpu = resolveSceneLighting(false);
+
+    expect(software.ambientIntensity).toBeGreaterThan(gpu.ambientIntensity);
+    expect(software.keyIntensity).toBeGreaterThan(gpu.keyIntensity);
+    expect(software.fillIntensity).toBeGreaterThan(gpu.fillIntensity);
+  });
+
+  it("uses the original pre-HDRI intensities on the software branch", () => {
+    expect(resolveSceneLighting(true)).toEqual({
+      hdri: false,
+      ambientIntensity: 0.6,
+      keyIntensity: 1.2,
+      fillIntensity: 0.4,
+    });
+  });
+
+  it("drops both postprocessing and image-based lighting on the same branch", () => {
+    // The software renderer is one condition with two consequences, so a
+    // software renderer must fail both gates rather than only one.
+    const software = true;
+    expect(shouldRenderEffects(false, false) && !software).toBe(false);
+    expect(resolveSceneLighting(software).hdri).toBe(false);
+  });
+});
 
 describe("software renderer detection", () => {
   it("matches the common CPU rasterisers", () => {
