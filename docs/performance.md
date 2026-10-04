@@ -2,6 +2,12 @@
 
 This project keeps draw calls, texture sizes, and animation work within the operation budget defined for the product experience.
 
+> **Read first:** the headline Lighthouse figures in this document measure the DOM
+> shell only. The 3D canvas loads on user intent and Lighthouse never scrolls, so
+> no frame of the actual experience is ever traced. See
+> [Why the Lighthouse score does not measure the 3D experience](#why-the-lighthouse-score-does-not-measure-the-3d-experience)
+> for the frame costs that were measured directly, and for what remains unknown.
+
 The static scene uses Three.js 0.182.0 with @react-three/fiber 9.8.1. With Three.js 0.186.1, the browser console reported: `THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.` The warning originates from Three.js Clock use in the render runtime (Three.js deprecates Clock starting in r183); retain 0.182.0 for this milestone to keep the browser console free of that warning.
 
 ## Current baseline
@@ -89,6 +95,77 @@ Not addressed in this round, and the levers the audits actually point at:
 - No vendor chunk preloading strategy.
 - Worker-based three.js initialization and OffscreenCanvas rendering.
 - Real-device, non-throttled profiling. Every number here is simulated.
+
+## Why the Lighthouse score does not measure the 3D experience
+
+**The 0.96 median recorded above is a score for the DOM shell only. It is not a
+measure of the 3D experience, and it cannot be made into one.**
+
+The reason is architectural and deliberate. The Three.js bundle is not part of
+the initial client graph: `useDeferredProductCanvas` in
+`src/components/three/ExperienceCanvas.tsx` waits for a real user intent —
+`scroll`, `wheel`, `touchstart`, `pointerdown`, `keydown`, or leaving the intro
+section — before it resolves a runtime `import()`. That deferral is why the
+initial bundle stays small and why the Performance score has been stable while
+the scene grew substantially.
+
+Lighthouse does not scroll, does not dispatch a wheel event, and does not click.
+It loads the URL, waits for load and network quiet, and traces. The canvas is
+never created during that window, so no part of the renderer, the materials, the
+environment map or the postprocessing chain is ever exercised. Adding depth of
+field, a 1.7 MB HDRI, smooth scrolling and a full camera rig moved the
+Lighthouse median by nothing at all: 0.96 before those changes and 0.96 after.
+
+What the reported score does cover: the fonts, the static markup, the CSS, the
+metadata, the accessibility tree and the first-paint JavaScript. What it does not
+cover: every frame the visitor actually looks at.
+
+### Measured frame cost in this repository's test environment
+
+These are median milliseconds between consecutive animation frames, with the
+scene live in Section 06, measured the same way in every case. The test
+environment rasterises in software: `WEBGL_debug_renderer_info` reports
+`ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)),
+SwiftShader driver)`.
+
+| Configuration | ms per frame |
+| --- | --- |
+| Full chain, depth of field enabled | ~1162 |
+| Full chain, depth of field disabled | ~334 |
+| Composer scaffolding alone, empty chain | ~42 (the 60 Hz floor is ~17) |
+| Composer with no depth of field, no bloom | ~1009 with depth of field |
+| **Software renderer detected: no composer at all** | **~47** |
+| Mobile lite tier, no composer | ~20 |
+| Reduced motion, no composer | ~17 |
+
+The ~17 to 20 ms figures sit at the 60 Hz refresh floor, meaning the main thread
+is no longer blocked by rendering. The 47 ms software-tier figure implies roughly
+30 ms of real render work per frame.
+
+The single largest cost is depth of field, at roughly 828 ms per frame on this
+software rasteriser, which is about 70% of the composer and 3.5x everything else
+in it combined. Two optimisations were tried and rejected on measurement: dropping
+composer multisampling from 4 to 0 changed nothing (1265 against 1268 ms), and
+dropping the depth-of-field pass resolution scale from 0.5 to 0.25 also changed
+nothing (1162 against 1178 ms). Neither is carried.
+
+### What this means for any performance claim
+
+**On GPU hardware the numbers above are unknown.** They were measured on a CPU
+rasteriser, where every fragment is a software operation. A GPU would change
+them by a large and unmeasured factor, in either direction. Nothing in this
+repository measures GPU performance, and no claim about it should be made from
+these figures.
+
+Before any performance claim is made, the frame cost needs to be measured
+on-device, on a real GPU, at both the desktop and mobile tiers. That has not been
+done and is recorded here as outstanding rather than assumed.
+
+Until then, treat the two numbers as separate and unrelated: the 0.96 Lighthouse
+median is a real, reproducible figure for the DOM shell, and the frame-cost table
+is a real, reproducible figure for one software-rasterised environment. Neither
+substitutes for the other, and the Performance gate in
+`.github/scripts/assert-lighthouse-budget.mjs` guards only the first.
 
 ## Milestone B — Performance Baseline
 
