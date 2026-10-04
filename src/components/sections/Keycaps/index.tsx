@@ -17,12 +17,13 @@ export function Keycaps() {
           {copy.eyebrow}
         </p>
         <h2
+          data-reveal="lead"
           id="keycaps-title"
           className="text-4xl font-semibold leading-tight text-white sm:text-6xl"
         >
           {copy.title}
         </h2>
-        <p className="mt-6 text-lg leading-relaxed text-white/70">{copy.body}</p>
+        <p data-reveal="lead" className="mt-6 text-lg leading-relaxed text-white/70">{copy.body}</p>
 
         <ul className="mt-8 grid gap-6 text-sm text-white/80 sm:grid-cols-2">
           <li>
@@ -65,7 +66,7 @@ export function Keycaps() {
 
         <ul className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm text-white/80">
           {copy.details.map((detail) => (
-            <li key={detail}>{detail}</li>
+            <li data-reveal="detail" key={detail}>{detail}</li>
           ))}
         </ul>
       </div>

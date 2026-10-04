@@ -14,10 +14,10 @@ export function Intro() {
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.3em] text-white/60">
           {copy.eyebrow}
         </p>
-        <h2 id="intro-title" className="max-w-3xl text-4xl font-semibold leading-tight text-white sm:text-6xl">
+        <h2 data-reveal="lead" id="intro-title" className="max-w-3xl text-4xl font-semibold leading-tight text-white sm:text-6xl">
           {copy.title}
         </h2>
-        <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
+        <p data-reveal="lead" className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
           {copy.body}
         </p>
       </div>

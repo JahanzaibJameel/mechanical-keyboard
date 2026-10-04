@@ -14,10 +14,10 @@ export function Finale() {
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.3em] text-white/60">
           {copy.eyebrow}
         </p>
-        <h2 id="finale-title" className="text-5xl font-semibold text-white sm:text-7xl">
+        <h2 data-reveal="lead" id="finale-title" className="text-5xl font-semibold text-white sm:text-7xl">
           {copy.title}
         </h2>
-        <p className="mt-6 text-lg text-white/70">{copy.body}</p>
+        <p data-reveal="lead" className="mt-6 text-lg text-white/70">{copy.body}</p>
         <a className="mt-10 inline-flex border border-white/50 px-5 py-3 text-sm text-white transition-colors hover:bg-white hover:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white" href="#intro">
           {copy.details[0]}
         </a>

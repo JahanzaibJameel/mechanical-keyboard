@@ -14,15 +14,15 @@ export function Construction() {
         <p className="mb-5 text-xs font-medium uppercase tracking-[0.3em] text-white/60">
           {copy.eyebrow}
         </p>
-        <h2 id="construction-title" className="text-4xl font-semibold leading-tight text-white sm:text-6xl">
+        <h2 data-reveal="lead" id="construction-title" className="text-4xl font-semibold leading-tight text-white sm:text-6xl">
           {copy.title}
         </h2>
-        <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
+        <p data-reveal="lead" className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
           {copy.body}
         </p>
         <ol className="mt-8 flex flex-wrap gap-x-7 gap-y-3 text-sm text-white/80">
           {copy.details.map((detail, index) => (
-            <li key={detail}>{`${index + 1}. ${detail}`}</li>
+            <li data-reveal="detail" key={detail}>{`${index + 1}. ${detail}`}</li>
           ))}
         </ol>
         {/* Exploded part list - appears progressively during explosion */}

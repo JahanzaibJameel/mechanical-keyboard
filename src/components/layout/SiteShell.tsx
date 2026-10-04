@@ -29,6 +29,12 @@ const SectionRail = dynamic(
   { ssr: false },
 );
 
+/** Delay between a section's heading and its lead, and between leads. */
+const LEAD_STAGGER_MS = 80;
+
+/** Delay between children of a section's detail list. */
+const DETAIL_STAGGER_MS = 40;
+
 export function SiteShell({ children, canvas }: Props) {
   const mainRef = useRef<HTMLElement>(null);
   const { activeSectionId } = useExperienceProgress();
@@ -47,6 +53,27 @@ export function SiteShell({ children, canvas }: Props) {
       node.classList.toggle("translate-y-6", !visible);
       node.classList.toggle("opacity-100", visible);
       node.classList.toggle("translate-y-0", visible);
+
+      /**
+       * Staggered reveals for the heading, the lead and the detail list.
+       *
+       * The delay is a custom property so the transition, the easing and the
+       * reduced-motion override all stay in globals.css; this only sets how far
+       * into the stagger each element sits. Lead elements step 80ms apart and
+       * detail children 40ms, so the detail list resolves faster than the
+       * heading that introduces it.
+       */
+      const lead = node.querySelectorAll<HTMLElement>('[data-reveal="lead"]');
+      lead.forEach((element, index) => {
+        element.style.setProperty("--reveal-delay", `${index * LEAD_STAGGER_MS}ms`);
+        element.classList.toggle("is-revealed", visible);
+      });
+
+      const detail = node.querySelectorAll<HTMLElement>('[data-reveal="detail"]');
+      detail.forEach((element, index) => {
+        element.style.setProperty("--reveal-delay", `${index * DETAIL_STAGGER_MS}ms`);
+        element.classList.toggle("is-revealed", visible);
+      });
     });
 
     // The hero is rendered inside the fixed canvas layer, which is a sibling of

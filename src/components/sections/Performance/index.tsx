@@ -110,12 +110,13 @@ export function Performance() {
           09 / PERFORMANCE
         </p>
         <h2
+          data-reveal="lead"
           id="performance-title"
           className="text-4xl font-semibold leading-tight text-white sm:text-6xl"
         >
           Ready when you are.
         </h2>
-        <p className="mt-6 text-lg leading-relaxed text-white/70">
+        <p data-reveal="lead" className="mt-6 text-lg leading-relaxed text-white/70">
           Responsive polling, low-latency wireless and a long-lasting battery
           support focused work.
         </p>

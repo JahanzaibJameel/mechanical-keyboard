@@ -53,12 +53,13 @@ export function Configurator() {
               {copy.eyebrow}
             </p>
             <h2
+              data-reveal="lead"
               id="configurator-title"
               className="text-4xl font-semibold leading-tight text-white sm:text-6xl"
             >
               {copy.title}
             </h2>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">{copy.body}</p>
+            <p data-reveal="lead" className="mt-6 max-w-xl text-lg leading-relaxed text-white/70">{copy.body}</p>
 
             <dl className="mt-10 grid max-w-md grid-cols-3 gap-px border border-white/10 bg-white/10">
               <SummaryCell label="Case" value={labelFor(caseColorOptions, config.case)} />
