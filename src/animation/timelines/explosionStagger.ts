@@ -26,6 +26,9 @@ export const LAYER_START: Readonly<Record<ExplosionLayer, number>> = {
   case: 0.4,
 };
 
+export const EXPLOSION_DAMPING = 6;
+export const EXPLOSION_SETTLE_EPSILON = 0.0005;
+
 /**
  * Overshoot strength per layer, as the `c1` of the standard easeOutBack curve.
  *
