@@ -1,4 +1,4 @@
-import { useContext } from "react";
+﻿import { useContext } from "react";
 import type { RefObject } from "react";
 import type { ProductMotionTarget } from "@/animation/config";
 import { ActiveSectionContext } from "@/components/layout/SiteShell";
@@ -58,7 +58,7 @@ export function ProductScene({
     <>
       <SceneEnvironment softwareRenderer={softwareRenderer} />
       <CameraRig initialStateId="intro" />
-      <ProductParts config={config} partsRef={partsRef} productRef={productRef} />
+      <ProductParts config={config} partsRef={partsRef} productRef={productRef} isLiteTier={isLiteTier} />
       {effectsEnabled ? (
         <SceneEffects depthOfField={shouldRenderDepthOfField(activeSectionId)} />
       ) : null}
