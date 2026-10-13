@@ -36,6 +36,23 @@ export type CameraRigProps = {
  */
 const IDLE_FRAME_INTERVAL_MS = 100;
 
+/**
+ * Spring-physics parameters for critical damping.
+ *
+ * Critical damping = 2 * sqrt(k * m) ≈ 12.65 for k=40, m=1.
+ * We use slightly underdamped (damping=12) to preserve a subtle overshoot
+ * that makes the camera feel physical rather than obeying an exponential lerp.
+ *
+ * Item 2 — Spring-physics camera spec:
+ *   stiffness = 40
+ *   damping   = 12
+ *   mass      = 1
+ */
+const SPRING_STIFFNESS = 40;
+const SPRING_DAMPING = 12;
+const SPRING_MASS = 1;
+const SPRING_SETTLE_EPSILON = 0.001;
+
 export function CameraRig({
   initialStateId = "intro",
 }: CameraRigProps) {
@@ -48,6 +65,60 @@ export function CameraRig({
   const elapsed = useRef(0);
   const isPlacedRef = useRef(false);
   const initialState = cameraStates[initialStateId];
+
+  // Spring-physics state refs
+  const positionVelocity = useRef(new THREE.Vector3());
+  const lookAtVelocity = useRef(new THREE.Vector3());
+  const fovVelocity = useRef(0);
+  const lookAtCurrent = useRef(new THREE.Vector3());
+
+  // Core spring integration functions
+  const springVector = (
+    current: THREE.Vector3,
+    target: THREE.Vector3,
+    velocity: THREE.Vector3,
+    delta: number,
+  ): void => {
+    const step = Math.min(delta, 0.05);
+
+    const springForceX = (target.x - current.x) * SPRING_STIFFNESS;
+    const springForceY = (target.y - current.y) * SPRING_STIFFNESS;
+    const springForceZ = (target.z - current.z) * SPRING_STIFFNESS;
+
+    const dampingForceX = -velocity.x * SPRING_DAMPING;
+    const dampingForceY = -velocity.y * SPRING_DAMPING;
+    const dampingForceZ = -velocity.z * SPRING_DAMPING;
+
+    const accelX = (springForceX + dampingForceX) / SPRING_MASS;
+    const accelY = (springForceY + dampingForceY) / SPRING_MASS;
+    const accelZ = (springForceZ + dampingForceZ) / SPRING_MASS;
+
+    velocity.x += accelX * step;
+    velocity.y += accelY * step;
+    velocity.z += accelZ * step;
+
+    current.x += velocity.x * step;
+    current.y += velocity.y * step;
+    current.z += velocity.z * step;
+  };
+
+  const springScalar = (
+    current: number,
+    target: number,
+    velocity: number,
+    delta: number,
+  ): number => {
+    const step = Math.min(delta, 0.05);
+
+    const springForce = (target - current) * SPRING_STIFFNESS;
+    const dampingForce = -velocity * SPRING_DAMPING;
+    const accel = (springForce + dampingForce) / SPRING_MASS;
+
+    const nextVelocity = velocity + accel * step;
+    const nextCurrent = current + nextVelocity * step;
+
+    return nextCurrent;
+  };
 
   /**
    * Keeps the renderer awake while the idle drift is running.
@@ -98,8 +169,10 @@ export function CameraRig({
       isPlacedRef.current = true;
       camera.position.set(...initialState.position);
       camera.lookAt(...initialState.target);
+      lookAtCurrent.current.set(...initialState.target);
       camera.fov = initialState.fov;
       camera.updateProjectionMatrix();
+      return;
     }
 
     const values = cameraStateAtProgress(
@@ -122,24 +195,40 @@ export function CameraRig({
       return;
     }
 
-    const response = 1 - Math.exp(-delta * 2.5);
-
-    camera.position.lerp(positionTarget.current, response);
-    camera.lookAt(lookAtTarget.current);
-
-    const nextFov = THREE.MathUtils.damp(camera.fov, values.fov, 4, delta);
-    if (camera.fov !== nextFov) {
+    // Apply spring-physics for position, lookAt, and FOV
+    springVector(camera.position, positionTarget.current, positionVelocity.current, delta);
+    springVector(lookAtCurrent.current, lookAtTarget.current, lookAtVelocity.current, delta);
+    const nextFov = springScalar(camera.fov, values.fov, fovVelocity.current, delta);
+    if (nextFov !== camera.fov) {
       camera.fov = nextFov;
       camera.updateProjectionMatrix();
     }
 
-    const distanceSq = camera.position.distanceToSquared(positionTarget.current);
+    // Settle snap: if both displacement and velocity are tiny, snap to target
+    const posDeltaSq = camera.position.distanceToSquared(positionTarget.current);
+    const lookDeltaSq = lookAtCurrent.current.distanceToSquared(lookAtTarget.current);
+    const posSpeedSq = positionVelocity.current.lengthSq();
+    const lookSpeedSq = lookAtVelocity.current.lengthSq();
     const fovDelta = Math.abs(camera.fov - values.fov);
+    const fovSpeed = Math.abs(fovVelocity.current);
 
-    if (distanceSq < 1e-8 && fovDelta < 0.005) {
+    if (
+      posDeltaSq < SPRING_SETTLE_EPSILON * SPRING_SETTLE_EPSILON &&
+      posSpeedSq < SPRING_SETTLE_EPSILON * SPRING_SETTLE_EPSILON &&
+      lookDeltaSq < SPRING_SETTLE_EPSILON * SPRING_SETTLE_EPSILON &&
+      lookSpeedSq < SPRING_SETTLE_EPSILON * SPRING_SETTLE_EPSILON &&
+      fovDelta < 0.005 &&
+      fovSpeed < 0.005
+    ) {
       camera.position.copy(positionTarget.current);
-      camera.fov = values.fov;
-      camera.updateProjectionMatrix();
+      lookAtCurrent.current.copy(lookAtTarget.current);
+      positionVelocity.current.set(0, 0, 0);
+      lookAtVelocity.current.set(0, 0, 0);
+      fovVelocity.current = 0;
+      if (camera.fov !== values.fov) {
+        camera.fov = values.fov;
+        camera.updateProjectionMatrix();
+      }
     }
 
     // Applied AFTER the settle snap above, so the snap cannot wipe it, and
@@ -153,7 +242,7 @@ export function CameraRig({
     });
 
     if (lean.current !== 0) {
-      forward.current.copy(lookAtTarget.current).sub(camera.position);
+      forward.current.copy(lookAtCurrent.current).sub(camera.position);
       if (forward.current.lengthSq() > 1e-12) {
         forward.current.normalize();
         camera.position.addScaledVector(forward.current, lean.current);
@@ -174,11 +263,11 @@ export function CameraRig({
     camera.position.x += drift.x;
     camera.position.y += drift.y;
     camera.position.z += drift.z;
-    lookAtTarget.current.x += drift.targetX;
-    lookAtTarget.current.y += drift.targetY;
-    lookAtTarget.current.z += drift.targetZ;
+    lookAtCurrent.current.x += drift.targetX;
+    lookAtCurrent.current.y += drift.targetY;
+    lookAtCurrent.current.z += drift.targetZ;
 
-    camera.lookAt(lookAtTarget.current);
+    camera.lookAt(lookAtCurrent.current);
 
     // Frames have to keep being requested while the lean or the drift is still
     // live, because the scroll owner has stopped emitting by then and would
@@ -187,7 +276,16 @@ export function CameraRig({
       Math.max(Math.abs(drift.x), Math.abs(drift.y), Math.abs(drift.z)) >
       DRIFT_SETTLE_EPSILON;
 
-    if (distanceSq > 0.000001 || fovDelta > 0.01 || lean.current !== 0 || drifting) {
+    if (
+      posDeltaSq > 0.000001 ||
+      posSpeedSq > 0.000001 ||
+      lookDeltaSq > 0.000001 ||
+      lookSpeedSq > 0.000001 ||
+      fovDelta > 0.01 ||
+      fovSpeed > 0.01 ||
+      lean.current !== 0 ||
+      drifting
+    ) {
       invalidate();
     }
   });
