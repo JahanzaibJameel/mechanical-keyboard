@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentType,
-} from "react";
+import { useContext, useEffect, useRef, useState, type ComponentType } from "react";
 import {
   HERO_ANIMATION,
   type CameraRigTarget,
@@ -145,32 +139,6 @@ function useDeferredProductCanvas(enabled: boolean): ProductCanvasComponent | nu
   return component;
 }
 
-type MotionVector = {
-  x: number;
-  y: number;
-  z: number;
-  set: (x: number, y: number, z: number) => MotionVector;
-};
-
-function createMotionVector(
-  [x, y, z]: readonly [number, number, number],
-): CameraRigTarget["position"] {
-  const vector: MotionVector = {
-    x,
-    y,
-    z,
-    set(nextX, nextY, nextZ) {
-      vector.x = nextX;
-      vector.y = nextY;
-      vector.z = nextZ;
-      return vector;
-    },
-  };
-
-  // The DOM timeline uses only coordinates and set; the Three.js camera stays in the lazy chunk.
-  return vector as CameraRigTarget["position"];
-}
-
 export function ExperienceCanvas() {
   const activeSectionId = useContext(ActiveSectionContext);
   const hasIntent = useProductExperienceIntent(activeSectionId);
@@ -254,4 +222,31 @@ export function ExperienceCanvas() {
       <Hero cameraRigRef={cameraRigRef} productRef={productRef} />
     </div>
   );
+}
+
+// Helper function for camera rig initial position/rotation
+type MotionVector = {
+  x: number;
+  y: number;
+  z: number;
+  set: (x: number, y: number, z: number) => MotionVector;
+};
+
+function createMotionVector(
+  [x, y, z]: readonly [number, number, number],
+): CameraRigTarget["position"] {
+  const vector: MotionVector = {
+    x,
+    y,
+    z,
+    set(nextX, nextY, nextZ) {
+      vector.x = nextX;
+      vector.y = nextY;
+      vector.z = nextZ;
+      return vector;
+    },
+  };
+
+  // The DOM timeline uses only coordinates and set; the Three.js camera stays in the lazy chunk.
+  return vector as CameraRigTarget["position"];
 }
