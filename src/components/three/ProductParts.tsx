@@ -1,16 +1,17 @@
+"use client";
+
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useRef, type RefObject } from "react";
-import { Mesh, type Object3D } from "three";
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { Mesh, type Object3D, Vector2 } from "three";
+import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { ProductMotionTarget } from "@/animation/config";
-import { EXPLODED_OFFSETS } from "@/animation/timelines/constructionTimeline";
-import {
-  layerExplosion,
-  type ExplosionLayer,
-} from "@/animation/timelines/explosionStagger";
+import { EXPLOSION_DAMPING, EXPLOSION_SETTLE_EPSILON, layerExplosion, type ExplosionLayer } from "@/animation/timelines/explosionStagger";
 import { updateProductTimeline } from "@/animation/timelines/productTimeline";
 import { getSectionLocalProgress } from "@/animation/transitions/sectionTransitions";
 import { caseMaterials, keycapMaterials, switchMaterials } from "@/data/materials";
 import { PART_DIMENSIONS } from "@/data/productGeometry";
+import { createKeycapGeometry, createSwitchHousingGeometry, createSwitchStemGeometry, SWITCH_STEM_Y } from "@/data/productGeometry";
 import { sections } from "@/data/sections";
 import {
   heroSwitchPress,
@@ -19,6 +20,8 @@ import {
 } from "@/components/three/heroSwitchPress";
 import { experienceProgressValue } from "@/hooks/useExperienceProgress";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { applyBrushedAluminum } from "@/three/materials/brushedAluminum";
+import { initKeycapMotion, updateKeycapMotion, applyKeycapTransform, setCursorNDC, setReducedMotion as setKeycapReducedMotion } from "@/components/three/keycapMotion";
 import type { ProductPartsHandle } from "@/types/parts";
 import type { ProductConfig } from "@/types/product";
 
@@ -26,38 +29,11 @@ type Props = {
   readonly productRef: RefObject<ProductMotionTarget>;
   readonly partsRef: RefObject<ProductPartsHandle>;
   readonly config: ProductConfig;
+  readonly isLiteTier: boolean;
 };
 
-/** Minimal structural shape of a three.js object that owns a position. */
-type PositionedObject = {
-  readonly position: { y: number };
-};
-
-type ExplodedRigPart = {
-  readonly key: "case" | "plate" | "pcb" | "switches" | "keycaps";
-  /** Same identity as key, named for the stagger schedule it selects. */
-  readonly layer: ExplosionLayer;
-  readonly assembledY: number;
-  readonly offset: number;
-};
-
-const EXPLOSION_DAMPING = 6;
-const EXPLOSION_SETTLE_EPSILON = 0.0005;
-
-/**
- * Fraction of the construction range over which the layers finish separating.
- * The camera starts moving from the exploded framing towards the switch macro
- * as soon as the construction section begins, so holding full separation until
- * the very end would show it only once the camera has already left. Completing
- * at 60% keeps all five layers visibly apart for the back half of the section.
- */
 const EXPLOSION_COMPLETE_AT = 0.6;
 
-/**
- * The switch in Section 07 that the camera frames and that can be pressed.
- * The grid is 5 rows by 15 columns, so row 2 / column 7 sits at the origin,
- * which is what the `switchMacro` camera state looks at.
- */
 const HERO_SWITCH_ROW = 2;
 const HERO_SWITCH_COLUMN = 7;
 const SWITCH_PRESS_TRAVEL = 0.045;
@@ -67,14 +43,35 @@ const SWITCH_PRESS_SETTLE_EPSILON = 0.001;
 const CONSTRUCTION_SECTION = sections.find((section) => section.id === "construction");
 const FINAL_PRODUCT_SECTION = sections.find((section) => section.id === "finalProduct");
 
-/**
- * Explosion schedule (owned by ProductParts; section components never drive it):
- *   0 -> 1 through Section 06 (Construction)
- *   hold at 1 through Sections 07-10 (Switches, Keycaps, Performance, Configurator)
- *   1 -> 0 through Section 11 (Reassembly)
- *   hold at 0 through Section 12 (Finale)
- */
-export function computeExplodedState(progress: number): number {
+const EXPLODED_RIG: ReadonlyArray<{
+  readonly key: keyof ProductPartsHandle;
+  readonly layer: ExplosionLayer;
+  readonly assembledY: number;
+  readonly offset: number;
+}> = [
+  { key: "case", layer: "case", assembledY: PART_DIMENSIONS.case.y, offset: 0.35 },
+  { key: "plate", layer: "plate", assembledY: PART_DIMENSIONS.plate.y, offset: 0.25 },
+  { key: "pcb", layer: "pcb", assembledY: PART_DIMENSIONS.pcb.y, offset: 0.15 },
+  { key: "switches", layer: "switches", assembledY: PART_DIMENSIONS.switchRow.baseY, offset: 0.12 },
+  { key: "keycaps", layer: "keycaps", assembledY: PART_DIMENSIONS.keycap.baseY, offset: 0.08 },
+];
+
+function applyPartOpacity(object: Object3D, opacity: number): void {
+  if (!(object instanceof Mesh)) {
+    return;
+  }
+
+  if (Array.isArray(object.material)) {
+    for (const material of object.material) {
+      material.opacity = opacity;
+    }
+    return;
+  }
+
+  object.material.opacity = opacity;
+}
+
+function computeExplodedState(progress: number): number {
   const constructionLocal = CONSTRUCTION_SECTION
     ? getSectionLocalProgress(progress, CONSTRUCTION_SECTION)
     : 0;
@@ -96,57 +93,80 @@ export function computeExplodedState(progress: number): number {
   return explosionProgress;
 }
 
-/** Exported for schedule verification tests; section components never drive it. */
+type PositionedObject = {
+  readonly position: { y: number };
+};
 
-/**
- * Assembled rest height plus the vertical offset applied while exploded,
- * per part. Offsets come from the construction timeline.
- */
-const EXPLODED_RIG: readonly ExplodedRigPart[] = [
-  { key: "case", layer: "case", assembledY: PART_DIMENSIONS.case.y, offset: EXPLODED_OFFSETS.case ?? 0 },
-  { key: "plate", layer: "plate", assembledY: PART_DIMENSIONS.plate.y, offset: EXPLODED_OFFSETS.plate ?? 0 },
-  { key: "pcb", layer: "pcb", assembledY: PART_DIMENSIONS.pcb.y, offset: EXPLODED_OFFSETS.pcb ?? 0 },
-  {
-    key: "switches",
-    layer: "switches",
-    assembledY: PART_DIMENSIONS.switchRow.baseY,
-    offset: EXPLODED_OFFSETS.switch ?? 0,
-  },
-  {
-    key: "keycaps",
-    layer: "keycaps",
-    assembledY: PART_DIMENSIONS.keycap.baseY,
-    offset: EXPLODED_OFFSETS.keycap ?? 0,
-  },
-];
-
-function applyPartOpacity(object: Object3D, opacity: number): void {
-  if (!(object instanceof Mesh)) {
-    return;
-  }
-
-  if (Array.isArray(object.material)) {
-    for (const material of object.material) {
-      material.opacity = opacity;
-    }
-    return;
-  }
-
-  object.material.opacity = opacity;
-}
-
-export function ProductParts({ productRef, partsRef, config }: Props) {
+export function ProductParts({ productRef, partsRef, config, isLiteTier }: Props) {
   const reducedMotion = useReducedMotion();
   const invalidate = useThree((state) => state.invalidate);
+  const camera = useThree((state) => state.camera);
   const explodedRef = useRef(0);
-  const heroSwitchRef = useRef<Mesh | null>(null);
+  const heroSwitchRef = useRef<THREE.Group | null>(null);
   const heroSwitchPressedRef = useRef(0);
+  const keycapMeshesRef = useRef<Map<number, Mesh>>(new Map());
+  const keycapInitializedRef = useRef(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const caseMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
+  const plateMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
+  const pcbMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
+
+  useEffect(() => {
+    const canvas = document.querySelector("canvas");
+    if (canvas) {
+      canvasRef.current = canvas;
+    }
+  }, []);
 
   useEffect(() => registerHeroSwitchInvalidation(invalidate), [invalidate]);
+
+  useEffect(() => {
+    setKeycapReducedMotion(reducedMotion);
+  }, [reducedMotion]);
 
   const caseMaterial = caseMaterials[config.case];
   const keycapMaterial = keycapMaterials[config.keycaps];
   const switchMaterial = switchMaterials[config.switchType];
+
+  // Apply brushed aluminum shaders to materials when they are ready
+  useLayoutEffect(() => {
+    if (caseMaterialRef.current) {
+      try {
+        applyBrushedAluminum(caseMaterialRef.current, {
+          anisoDir: 'x',
+          intensity: 0.3,
+        });
+      } catch (e) {
+        console.warn('Failed to apply brushed aluminum shader to case:', e);
+      }
+    }
+  }, [caseMaterialRef]);
+
+  useLayoutEffect(() => {
+    if (plateMaterialRef.current) {
+      try {
+        applyBrushedAluminum(plateMaterialRef.current, {
+          anisoDir: 'xz',
+          intensity: 0.2,
+        });
+      } catch (e) {
+        console.warn('Failed to apply brushed aluminum shader to plate:', e);
+      }
+    }
+  }, [plateMaterialRef]);
+
+  useLayoutEffect(() => {
+    if (pcbMaterialRef.current) {
+      try {
+        applyBrushedAluminum(pcbMaterialRef.current, {
+          anisoDir: 'none',
+          intensity: 0.1,
+        });
+      } catch (e) {
+        console.warn('Failed to apply brushed aluminum shader to pcb:', e);
+      }
+    }
+  }, [pcbMaterialRef]);
 
   const columns = PART_DIMENSIONS.keycap.count;
   const switchRows = PART_DIMENSIONS.switchRow.count;
@@ -178,6 +198,24 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
     document.body.style.cursor = "";
   };
 
+  const handlePointerMove = useCallback((event: PointerEvent): void => {
+    if (reducedMotion || isLiteTier) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    setCursorNDC(new Vector2(x, y));
+    invalidate();
+  }, [reducedMotion, isLiteTier, invalidate]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.addEventListener("pointermove", handlePointerMove);
+    return () => canvas.removeEventListener("pointermove", handlePointerMove);
+  }, [handlePointerMove]);
+
   useFrame((_, delta) => {
     const progress = experienceProgressValue.current;
     updateProductTimeline(progress, productRef.current);
@@ -188,7 +226,6 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
       root.traverse((object) => applyPartOpacity(object, productRef.current.opacity));
     }
 
-    // Global explosion schedule owned by ProductParts; section components never drive it.
     const exploded = computeExplodedState(progress);
 
     if (reducedMotion) {
@@ -208,12 +245,53 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
       if (!object) {
         continue;
       }
-      // Each layer has its own start offset within the section and its own
-      // overshoot, rather than all five sharing one scalar. The shared amount
-      // from computeExplodedState is unchanged, so the schedule and the existing
-      // tests are untouched; only the per-layer timing is new.
       object.position.y =
         part.assembledY + part.offset * layerExplosion(part.layer, explodedRef.current);
+    }
+
+    if (!keycapInitializedRef.current) {
+      const keycapStates: Array<{ id: number; position: THREE.Vector3; rotation: THREE.Euler; scale: THREE.Vector3 }> = [];
+      const keycapsGroup = partsRef.current.keycaps;
+      if (keycapsGroup) {
+        keycapsGroup.traverse((object) => {
+          if (object instanceof Mesh && object.name && object.name.startsWith("KEYCAP_")) {
+            const match = object.name.match(/KEYCAP_(\d+)_(\d+)/);
+            if (match && match[1] && match[2]) {
+              const row = parseInt(match[1], 10);
+              const column = parseInt(match[2], 10);
+              const id = (row - 1) * columns + (column - 1);
+              keycapStates.push({
+                id,
+                position: object.position.clone(),
+                rotation: object.rotation.clone(),
+                scale: object.scale.clone(),
+              });
+              keycapMeshesRef.current.set(id, object);
+            }
+          }
+        });
+      }
+      if (keycapStates.length > 0) {
+        initKeycapMotion(keycapStates, {}, {
+          reducedMotion,
+          onInvalidate: invalidate,
+          patchMaterial: (material, keycapId, state) => {
+            material.userData.keycapState = {
+              pressOffset: state.ripplePhase,
+              morphProgress: state.morphProgress,
+              time: performance.now() / 1000,
+            };
+          },
+        });
+        keycapInitializedRef.current = true;
+      }
+    }
+
+    if (keycapInitializedRef.current) {
+      updateKeycapMotion(camera, delta);
+      for (const [id, mesh] of keycapMeshesRef.current) {
+        applyKeycapTransform(mesh, id);
+      }
     }
 
     const heroSwitch = heroSwitchRef.current;
@@ -246,14 +324,9 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
         ref={(mesh) => setPart("case", mesh)}
         position={[0, PART_DIMENSIONS.case.y, 0]}
       >
-        <boxGeometry
-          args={[
-            PART_DIMENSIONS.case.width,
-            PART_DIMENSIONS.case.height,
-            PART_DIMENSIONS.case.depth,
-          ]}
-        />
+        <primitive object={new RoundedBoxGeometry(3.2, 0.15, 1.35, 8, 0.04)} />
         <meshStandardMaterial
+          ref={caseMaterialRef}
           color={caseMaterial.color}
           metalness={caseMaterial.metalness}
           roughness={caseMaterial.roughness}
@@ -265,14 +338,13 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
         ref={(mesh) => setPart("plate", mesh)}
         position={[0, PART_DIMENSIONS.plate.y, 0]}
       >
-        <boxGeometry
-          args={[
-            PART_DIMENSIONS.plate.width,
-            PART_DIMENSIONS.plate.height,
-            PART_DIMENSIONS.plate.depth,
-          ]}
+        <boxGeometry args={[2.95, 0.015, 1.15]} />
+        <meshStandardMaterial
+          ref={plateMaterialRef}
+          color="#8d8f92"
+          metalness={0.6}
+          roughness={0.45}
         />
-        <meshStandardMaterial color="#8d8f92" metalness={0.6} roughness={0.45} />
       </mesh>
 
       <mesh
@@ -280,14 +352,13 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
         ref={(mesh) => setPart("pcb", mesh)}
         position={[0, PART_DIMENSIONS.pcb.y, 0]}
       >
-        <boxGeometry
-          args={[
-            PART_DIMENSIONS.pcb.width,
-            PART_DIMENSIONS.pcb.height,
-            PART_DIMENSIONS.pcb.depth,
-          ]}
+        <boxGeometry args={[2.95, 0.016, 1.15]} />
+        <meshStandardMaterial
+          ref={pcbMaterialRef}
+          color="#1f3b2c"
+          metalness={0.1}
+          roughness={0.8}
         />
-        <meshStandardMaterial color="#1f3b2c" metalness={0.1} roughness={0.8} />
       </mesh>
 
       <group
@@ -300,7 +371,7 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
             const isHeroSwitch = row === HERO_SWITCH_ROW && column === HERO_SWITCH_COLUMN;
 
             return (
-              <mesh
+              <group
                 key={`switch-${row + 1}-${column + 1}`}
                 name={isHeroSwitch ? "SWITCH_HERO" : `SWITCH_${row + 1}_${column + 1}`}
                 position={[
@@ -314,19 +385,29 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
                 onPointerOut={isHeroSwitch ? handleSwitchPointerOut : undefined}
                 onPointerOver={isHeroSwitch ? handleSwitchPointerOver : undefined}
               >
-                <boxGeometry
-                  args={[
-                    PART_DIMENSIONS.switchRow.size.width,
-                    PART_DIMENSIONS.switchRow.size.height,
-                    PART_DIMENSIONS.switchRow.size.depth,
-                  ]}
-                />
-                <meshStandardMaterial
-                  color={switchMaterial.color}
-                  metalness={switchMaterial.metalness}
-                  roughness={switchMaterial.roughness}
-                />
-              </mesh>
+                <mesh
+                  name="SWITCH_HOUSING"
+                  position={[0, 0, 0]}
+                >
+                  <primitive object={createSwitchHousingGeometry()} />
+                  <meshStandardMaterial
+                    color={switchMaterial.color}
+                    metalness={switchMaterial.metalness}
+                    roughness={switchMaterial.roughness}
+                  />
+                </mesh>
+                <mesh
+                  name="SWITCH_STEM"
+                  position={[0, SWITCH_STEM_Y, 0]}
+                >
+                  <primitive object={createSwitchStemGeometry()} />
+                  <meshStandardMaterial
+                    color={switchMaterial.color}
+                    metalness={switchMaterial.metalness}
+                    roughness={switchMaterial.roughness}
+                  />
+                </mesh>
+              </group>
             );
           }))}
       </group>
@@ -347,13 +428,7 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
                 (row - (keycapRows - 1) / 2) * PART_DIMENSIONS.keycap.spacingZ,
               ]}
             >
-              <boxGeometry
-                args={[
-                  PART_DIMENSIONS.keycap.size.width,
-                  PART_DIMENSIONS.keycap.size.height,
-                  PART_DIMENSIONS.keycap.size.depth,
-                ]}
-              />
+              <primitive object={createKeycapGeometry()} />
               <meshStandardMaterial
                 color={keycapMaterial.color}
                 metalness={keycapMaterial.metalness}
@@ -365,3 +440,5 @@ export function ProductParts({ productRef, partsRef, config }: Props) {
     </group>
   );
 }
+
+export { computeExplodedState };
