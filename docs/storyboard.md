@@ -170,3 +170,8 @@ after `intro`.
   milestone protocol in `.cursorrules`, which covers milestones E through K and
   the Definition of Done, but not the original narrative or the Section 0–F
   specs.
+- **The 3D Motion milestone (post-Milestone I) adds cinematic effects that are
+  not in the original storyboard:** cursor-proximity keycap lift, hero-switch
+  ripple wave, brushed-aluminum anisotropy, velocity-coupled postprocessing,
+  dust motes, and a Finale per-keycap oscillation. These are code-only; no
+  assets were added.
