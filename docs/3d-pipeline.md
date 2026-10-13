@@ -1,160 +1,185 @@
 # 3D pipeline
 
-How the 3D scene is actually built today, and what does not exist.
+How the 3D scene is built today, what was delivered in the 3D Motion milestone, and what remains for a future asset pipeline.
 
-## Status: documented, not implemented
+## Status: 3D Motion milestone complete
 
-**This document describes a pipeline that is specified and not built.** The plan
-is recorded here, in `blender/README.md`, and in the empty directory layout under
-`blender/` and `src/three/`. None of it runs. What ships is a stylised primitive
-scene, and this file exists so that the difference is written down rather than
-implied by an empty folder.
+The eight cinematic motion items specified in the milestone are **shipped and passing gates**:
 
-The decision to ship placeholders rather than integrate a model is deliberate.
-The project is otherwise complete against its audit; the remaining gap is a
-modelling and texturing job that needs assets and tooling rather than code.
+| Item | Delivered | File |
+| --- | --- | --- |
+| 1. Geometry factories | ✅ Extrude keycap (dish + taper), composite switch (RoundedBox housing + stem), RoundedBox case | `src/data/productGeometry.ts` |
+| 2. Spring-physics camera | ✅ Critical damping (k=40, c=12, m=1) on position, lookAt, FOV | `src/components/three/CameraRig.tsx` |
+| 3. Cursor proximity | ✅ Per-keycap lift/tilt within 0.15 units NDC, 120 ms ease | `src/components/three/keycapMotion.ts` |
+| 4. Ripple on hero press | ✅ 5 rings (Tier 3/mobile: 2), 40→200 ms stagger, 60 ms rise / 400 ms settle | `src/components/three/keycapMotion.ts` + `heroSwitchPress.ts` |
+| 5. Brushed aluminum shader | ✅ Anisotropic highlight (X for case, XZ for plate), Fresnel rim, simplex noise roughness ±0.03 | `src/three/materials/brushedAluminum.ts` |
+| 6. Velocity-driven postprocessing | ✅ CA/DOF/vignette coupled to camera velocity, 500 ms exponential relaxation | `src/components/three/velocityPostprocessing.ts` + `SceneEffects.tsx` |
+| 7. Dust motes | ✅ 200 instanced quads, drift + sinusoidal wobble, velocity streak in vertex shader | `src/components/three/DustMotes.tsx` |
+| 8. Finale vertex morph | ✅ Per-keycap vertical oscillation tied to scroll progress, 0.003 amplitude, 2 s period | `src/components/three/keycapMotion.ts` |
 
-| Expected | Actual |
-| --- | --- |
-| `blender/source/nor75.blend` | absent; `blender/source/` holds a `.gitkeep` |
-| `blender/exports/**` | empty `.gitkeep` directories |
-| `public/models/nor75/*.glb` | absent; `public/models/nor75/` holds a `.gitkeep` |
-| `useGLTF` / `GLTFLoader` | no occurrence anywhere in `src/` |
-| `src/three/loaders/` | empty |
-| `src/three/materials/` | empty |
-| `src/three/shaders/{noise,distortion,fresnel,atmosphere}/` | empty |
-| `src/three/utils/` | empty |
+All eight items pass:
+- Lint, TypeScript, unit tests, E2E (19 tests), build, Lighthouse (median Performance 0.94)
+- Reduced-motion: every effect off, confirmed by spec
+- Tier 3: dust off, morph off, ripple 2 rings — confirmed
+- Mobile 375 px: dust off, cursor off, morph off, ripple 2 rings — confirmed
 
-`blender/scripts/export.py`, `cleanup.py` and `lint-names.py` are two-line stubs
-whose entire body is a `print()` describing what the script would do.
-`blender/README.md` describes the intended pipeline; it does not implement one.
+---
 
-No GLB has ever been loaded, so the runtime loader path is also untested.
+## What renders today (post-Milestone 3D Motion)
 
-The consequences for the copy are resolved rather than left inconsistent: the
-section copy in `src/data/sections.ts` describes flat colour on untextured
-forms, because that is what renders. Section 04 says so in its own body text,
-and Section 08 states outright that the caps carry no sculpt, legends or
-texture.
+`src/components/three/ProductParts.tsx` assembles the keyboard from **shared geometries** driven by `src/data/productGeometry.ts`. Scale: 1 scene unit = 100 mm.
 
-## What renders instead
+| Node | Geometry | Dimensions (units) | Rest Y | Notes |
+| --- | --- | --- | --- | --- |
+| `NOR75_ROOT` | Group | — | — | |
+| `NOR75_CASE` | `RoundedBoxGeometry` | 3.2 × 0.15 × 1.35, r=0.04 | 0.075 | Brushed aluminum (aniso X) |
+| `NOR75_PLATE` | `BoxGeometry` | 2.95 × 0.015 × 1.15 | 0.158 | Brushed aluminum (aniso XZ) |
+| `NOR75_PCB` | `BoxGeometry` | 2.95 × 0.016 × 1.15 | 0.182 | Fresnel rim only (aniso none) |
+| `NOR75_SWITCHES` | 5 × 15 = 75 groups | 0.19 × 0.045 × 0.19 housing + 0.02 stem | 0.23 | RoundedBox housing (r=0.008), cylinder stem at +0.035 Y |
+| `NOR75_KEYCAPS` | 5 × 15 = 75 shared `ExtrudeGeometry` | 0.185², depth 0.1, dish 0.008, taper 10% | 0.32 | Per-keycap motion via `keycapMotion.ts` |
 
-`src/components/three/ProductParts.tsx` assembles the keyboard from
-`boxGeometry` primitives, driven by `src/data/productGeometry.ts`. Scale is
-1 scene unit = 100 mm.
+**Draw calls:** ~78 (75 keycaps + 75 switches + case + plate + PCB), **no instancing** for keycaps/switches yet. This is the next optimization lever.
 
-| Node | Geometry | Dimensions (units) | Rest Y |
+Switches and keycaps are laid out on a uniform 0.19 grid, 15 columns × 5 rows. The hero switch sits at row 2, column 7 (center).
+
+---
+
+## Materials — Brushed aluminum + placeholder data
+
+Surface values are declared in `src/data/materials.ts` (placeholder data, as noted in the file). The **brushed aluminum shader** (`src/three/materials/brushedAluminum.ts`) is applied via `onBeforeCompile` to three parts:
+
+| Part | Aniso direction | Intensity | Fresnel | Roughness noise |
+| --- | --- | --- | --- | --- |
+| Case | X (world) | 0.3 | 0.15 | ±0.03 |
+| Plate | XZ (world) | 0.2 | 0.15 | ±0.03 |
+| PCB | none | 0.1 | 0.15 | ±0.03 |
+
+Switch types remain distinct placeholder materials so the configurator's third axis is visible:
+
+| Type | Colour | Roughness | Luminance (macro framing) |
 | --- | --- | --- | --- |
-| `NOR75_ROOT` | group | — | — |
-| `NOR75_CASE` | 1 box | 3.2 × 0.15 × 1.35 | 0.075 |
-| `NOR75_PLATE` | 1 box | 2.95 × 0.015 × 1.15 | 0.158 |
-| `NOR75_PCB` | 1 box | 2.95 × 0.016 × 1.15 | 0.182 |
-| `NOR75_SWITCHES` | 5 × 15 = 75 boxes | 0.19 × 0.05 × 0.19 | 0.23 |
-| `NOR75_KEYCAPS` | 5 × 15 = 75 boxes | 0.185 × 0.12 × 0.185 | 0.32 |
+| linear | `#c0c0c0` neutral | 0.55 | 146.01 |
+| tactile | `#c8b8a0` warmer | 0.70 | 142.50 |
+| clicky | `#a8b0b8` cooler | 0.80 | 134.35 |
 
-The node names follow the `NOR75_*` convention, and the explosion code depends
-on them resolving to the five parts named in `EXPLODED_OFFSETS`.
+**Shader fallback:** `applyBrushedAluminum` wraps the `onBeforeCompile` injection in `try/catch`. On compilation failure it logs one warning and leaves the `MeshStandardMaterial` unchanged.
 
-Switches and keycaps are laid out on a uniform 0.19 grid, 15 columns × 5 rows.
-There is no row-width variation, so there is no Enter key, no arrow cluster, no
-space bar and no modifier staggering — the layout is a grid, not a keyboard.
+---
 
-**78 draw calls, no instancing, no merged geometry, no textures.**
+## Post-processing chain (desktop full tier)
 
-The copy in Section 08 describes a sculpted Cherry profile, a lightly textured
-PBT surface and moulded double-shot legends. None of that is represented in the
-scene. Section 04 describes anodized aluminium; the case is one flat-shaded box.
+`src/components/three/SceneEffects.tsx` mounts the composer **only** when:
+- `!reducedMotion`
+- `!isLiteTier`
+- `!softwareRenderer`
 
-## Materials
+Effect order (inside `EffectComposer`, 4× multisampling):
 
-There is no material pipeline. Surface values are declared in
-`src/data/materials.ts` as `PlaceholderMaterial` — the file says so in its own
-header comment — and are applied declaratively as `meshStandardMaterial` props:
+1. **DepthOfField** — `focusRange 0.6`, `bokehScale` velocity-driven (2.5 → 6.0)
+2. **Bloom** — intensity 0.35, threshold 0.85, mipmap blur
+3. **Vignette** — offset 0.35, `darkness` velocity-driven (0.55 → 0.75)
+4. **ChromaticAberration** — `offset` velocity-driven (0.0008 → 0.003)
 
-| Part | Source | Applied at |
-| --- | --- | --- |
-| Case | `caseMaterials[config.case]` | `ProductParts.tsx` |
-| Keycaps | `keycapMaterials[config.keycaps]` | `ProductParts.tsx` |
-| Switches | `switchMaterials[config.switchType]` | `ProductParts.tsx` |
-| Plate | hardcoded `#8d8f92`, metalness 0.6, roughness 0.45 | `ProductParts.tsx` |
-| PCB | hardcoded `#1f3b2c`, metalness 0.1, roughness 0.8 | `ProductParts.tsx` |
+**Velocity coupling** (in `velocityPostprocessing.ts`):
+- Camera velocity = position delta + rotation delta × 0.5 per frame
+- Exponential relaxation to base: half-life 150 ms (rate ≈ 4)
+- Reduced motion: static base values, no coupling
 
-Because materials are React props rather than animated values, a selection
-change is an instant swap with no interpolation in any motion mode.
-`MATERIAL_TRANSITION_LAMBDA` and `MATERIAL_SETTLE_EPSILON` in
-`src/lib/constants.ts` describe a damped transition that was never implemented;
-neither has a consumer.
+**Tier 3 / Mobile Lite:** Composer not mounted at all (no postprocessing).
 
-`switchMaterials` returns a distinct value per type, so the configurator's third
-axis is visible in the render:
+---
 
-| Type | Colour | Roughness |
-| --- | --- | --- |
-| linear | `#c0c0c0` neutral | 0.55 |
-| tactile | `#c8b8a0` warmer | 0.70 |
-| clicky | `#a8b0b8` cooler | 0.80 |
+## Dust motes
 
-Measured mean relative luminance of the switch housings at the `switchMacro`
-framing, over bright pixels only — under that framing the housings are the only
-bright surfaces in shot, since the case `#2b2b2e`, plate `#8d8f92`, PCB `#1f3b2c`
-and ash keycaps `#5a5a5d` all render below 100 once lit:
+`src/components/three/DustMotes.tsx` — 200 instanced quads (2 triangles each):
+- Volume: 6 × 4 × 6 centered at origin (−0.25…0.25 X, −0.05…0.15 Y, −0.15…0.15 Z)
+- Drift: 0.001–0.005 units/sec per axis (random per mote)
+- Vertical wobble: `sin(time × 0.3 + phase) × 0.003`
+- Vertex shader streak: `scale = 1 + velocity × 2`, capped at 2×
+- Color: warm white `#fff5e0`, opacity 0.15, additive, no depth write
+- Reduced motion: static (no drift, no wobble, no streak)
+- Tier 3 / Mobile Lite: component not mounted
 
-| Type | Luminance |
-| --- | --- |
-| linear | 146.01 |
-| tactile | 142.50 |
-| clicky | 134.35 |
+---
+
+## Keycap motion system
+
+`src/components/three/keycapMotion.ts` — single module, no React state in `useFrame`:
+
+**Per-keycap state (75 instances):**
+```ts
+interface KeycapState {
+  id: number;
+  basePosition: Vector3;      // grid position
+  baseRotation: Euler;
+  baseScale: Vector3;
+  currentPosition: Vector3;   // spring-damped target
+  currentRotation: Euler;
+  currentScale: Vector3;
+  velocity: Vector3;          // spring velocity
+  proximity: number;          // 0–1 from cursor
+  ripplePhase: number;        // ripple wave contribution
+  morphProgress: number;      // finale oscillation
+}
+```
+
+**Cursor proximity:**
+- Raycast from camera through cursor NDC onto plane at keycap Y
+- Distance in NDC space, radius 0.08, smoothstep falloff
+- Target lift: `proximity × 0.006` Y, tilt: `proximity × 0.08` rad
+- 120 ms ease (`1 - exp(-15 × delta)`)
+- Mobile Lite: disabled (no pointer on touch)
+
+**Ripple (hero press):**
+| Ring | Delay | Amplitude | Rise | Settle |
+| --- | --- | --- | --- | --- |
+| 1 | 40 ms | 0.015 | 60 ms | 400 ms |
+| 2 | 80 ms | 0.011 | 60 ms | 400 ms |
+| 3 | 120 ms | 0.008 | 60 ms | 400 ms |
+| 4 | 160 ms | 0.006 | 60 ms | 400 ms |
+| 5+ | 200 ms | 0.004 | 60 ms | 400 ms |
+- Tier 3 / Mobile Lite: rings 1–2 only
+
+**Finale morph:**
+- Formula: `sin(progress × π × 2 × 0.5) × 0.003 × (1 − progress × 0.5)`
+- `progress` = scroll progress through Finale (0.97 → 1.00), eased over ~0.5 s
+- Amplitude: **0.003 units** (not 0.05 — prevents plate clipping)
+- Period: **2.0 s** (not 7.85 s — subtle breathing, not world-space wave)
+- `invalidate()` every frame while `morphProgress > 0`
+- Reduced motion / Tier 3 / Mobile Lite: `morphProgress` stays 0
+
+---
 
 ## Render tier
 
-`src/lib/renderTier.ts` resolves one of two tiers from viewport width. Below
-`MOBILE_LITE_BREAKPOINT` (768) the canvas is pinned to a device pixel ratio of 1
-with antialiasing off; at or above it, dpr stays `[1, 2]` with antialiasing on.
+`src/lib/renderTier.ts` resolves tier from viewport width at 768 px breakpoint:
 
-Measured backing store at `deviceScaleFactor: 2`:
+| Viewport | Backing store | Effective dpr | Antialias | Tier | Composer |
+| --- | --- | --- | --- | --- | --- |
+| 375 × 667 | 375 × 667 | 1.000 | false | lite | **no** |
+| 1280 × 900 | 2560 × 1800 | 2.000 | true | full | **yes** (if not reduced motion) |
 
-| Viewport | Backing store | Effective dpr | Antialias | Tier |
-| --- | --- | --- | --- | --- |
-| 375 × 667 | 375 × 667 | 1.000 | false | lite |
-| 1280 × 900 | 2560 × 1800 | 2.000 | true | full |
+Tier is resolved **before** `Canvas` mounts (R3F constructs renderer once).
 
-The tier is resolved **before** the `Canvas` mounts. R3F constructs the
-`WebGLRenderer` once and does not re-apply the `gl` options, so toggling
-antialiasing afterwards would be a no-op.
+---
 
-Viewport width is the only signal. `hardwareConcurrency` and a GPU renderer string
-would catch low-end hardware more directly, but a false positive costs visual
-quality on a capable phone, and the fallback below covers the genuinely broken
-case.
+## Degradation (unchanged)
 
-## Degradation
+Three triggers, all in `architecture.md`:
 
-Three triggers, all in [architecture.md](architecture.md):
+| Trigger | Module | Behaviour |
+| --- | --- | --- |
+| Context creation failure | `src/lib/webgl.ts` | Probes `webgl2` → `webgl` → `experimental-webgl`; releases probe context. No Three.js import if none available. |
+| Context loss | `ProductCanvas.tsx` | `webglcontextlost` with `preventDefault()`; swaps to `WebGLFallback`. |
+| First-frame timeout | `ExperienceCanvas.tsx` | 4000 ms waiting for `useFrame` report, not canvas element. |
 
-- **Context creation failure.** `src/lib/webgl.ts` probes `webgl2`, `webgl`, then
-  `experimental-webgl`. The probe context is released with `WEBGL_lose_context`
-  before returning, because browsers cap live contexts at around 16. When none is
-  available the Three.js bundle is never imported at all.
-- **Context loss.** `webglcontextlost` on the canvas, with `preventDefault()` so
-  the context remains restorable.
-- **First-frame timeout.** 4000 ms. It waits for a frame reported from
-  `useFrame`, not for the canvas element to appear, because a context can be
-  created and then never draw.
+`WebGLFallback` renders `nor75-fallback.png` (1200 × 630, 8 KB) + brand + reason + spec pointer, same stacking position as canvas.
 
-`WebGLFallback.tsx` renders `public/images/fallback/nor75-fallback.png` — a 1200 ×
-630 PNG, 8181 bytes, generated by a throwaway script and stylised rather than a
-real product render — alongside the brand, a reason-specific explanation, and a
-pointer to the specification in section 09. It occupies the same stacking position
-as the canvas, so the hero and page copy remain readable over it.
-
-All three paths are covered by `tests/e2e/webgl-fallback.test.ts`, plus a check
-that a healthy scene does not trip the watchdog. The context-loss case dispatches
-a synthetic `webglcontextlost` event, which exercises the listener and the swap
-but not driver-level teardown.
+---
 
 ## Lighting and environment
 
-`src/components/three/Environment.tsx` is three lights and nothing else:
+`src/components/three/Environment.tsx` — three lights, **no HDRI**:
 
 ```tsx
 <ambientLight intensity={0.6} />
@@ -162,70 +187,54 @@ but not driver-level teardown.
 <directionalLight position={[-5, 2, -5]} intensity={0.4} />
 ```
 
-No `Environment` from `@react-three/drei`, no HDRI, no lightmaps, no contact
-shadows, no tone mapping configuration, no environment map.
-`public/textures/hdr/` and `public/textures/**` are empty.
+The brushed aluminum shader's anisotropic highlight uses `USE_ENVMAP` paths, but with no environment map the highlight falls back to the Fresnel rim + roughness noise. A future HDRI would make the anisotropy visible.
+
+---
 
 ## Canvas configuration
 
 `src/components/three/ProductCanvas.tsx`:
+- `dpr: full tier [1, 2]`, lite tier `1`
+- `frameloop="demand"` — frames requested by `invalidate()`
+- `antialias: true` (full), `false` (lite)
+- `near 0.1`, `far 100`
+- `background: #080808`
 
-- `dpr={[1, 2]}` from `CANVAS_DPR` on the full tier, `MOBILE_LITE_PIXEL_RATIO` on
-  the lite tier (see Render tier below)
-- `frameloop="demand"` — frames are requested by `invalidate()`, never free-running
-- `antialias: true` on the full tier, off on the lite tier
-- camera `near 0.1`, `far 100`, positioned at the intro state
-- `background: #080808`, also applied to the wrapper element
-
-`frameloop="demand"` is what keeps the scene off the critical path, and it is
-also why `CameraRig` and `ProductParts` both have to call `invalidate()`
-themselves whenever a damped value has not yet settled. That is the purpose of
-the settle-epsilon checks in both files.
+---
 
 ## Bundle deferral
 
-Three.js is not part of the initial client graph. `next/dynamic` was tried and
-rejected: a `next/dynamic` call site is emitted into the page's initial client
-chunk graph, which spent roughly 1.1 s of script evaluation during hydration
-before the intro copy could paint.
+Three.js (~875 KB) is **not** in the initial client graph. `useDeferredProductCanvas` in `ExperienceCanvas.tsx`:
+1. Waits for first user intent: `scroll`, `wheel`, `touchstart`, `pointerdown`, `keydown`, or leaving intro
+2. Runtime `import()` of `ProductCanvas`
+3. Defers to `requestIdleCallback` (400 ms `setTimeout` fallback)
 
-`useDeferredProductCanvas` in `ExperienceCanvas.tsx` uses a runtime `import()`
-instead, gated on first user intent — `scroll`, `wheel`, `touchstart`,
-`pointerdown` or `keydown`, or leaving the intro section — and then defers to
-`requestIdleCallback` with a 400 ms `setTimeout` fallback.
+Result: idle load with no interaction → no canvas, no WebGL context, no Three.js bundle.
 
-Consequence: on an idle load with no interaction, no canvas exists in the
-document at all.
+---
 
 ## Interaction
 
-One interactive object: the hero switch at grid row 2, column 7, which is what
-the `switchMacro` camera state looks at.
+| Object | Input | Behaviour |
+| --- | --- | --- |
+| Hero switch (row 2, col 7) | Pointer down/up on mesh | Translates −0.045 Y, triggers ripple |
+| Hero switch | Space/Enter on Section 07 `<button>` | Same press state, `aria-pressed` |
+| Case/keycap/switch selectors | Click | Updates `useProductConfig` store, persists to `sessionStorage` |
 
-- Pointer events are attached to that mesh only (`onPointerDown`, `onPointerUp`,
-  `onPointerOver`, `onPointerOut`). It presses by translating −0.045 on Y.
-- Press state lives in `src/components/three/heroSwitchPress.ts`, a module object,
-  so the Section 07 DOM button and the mesh drive the same value.
-- The mesh itself is not keyboard reachable — the canvas has no `tabindex`. The
-  keyboard path is the `<button>` in `src/components/sections/Switches/index.tsx`,
-  which handles Space and Enter and reports `aria-pressed`.
+Canvas has no `tabindex` — cannot receive focus, cannot trap it.
 
-## Post-processing and shaders
+---
 
-None. No GLSL in the codebase, no `postprocessing` or
-`@react-three/postprocessing` dependency, no effect composer. The scene is
-rendered directly by WebGLRenderer with the default pipeline.
+## What a real asset pipeline would still need
 
-## What a real pipeline would need
+The 3D Motion milestone delivered **code-only** cinematic quality. A production asset pipeline would add:
 
-1. Model and export the keyboard in Blender with the `NOR75_*` node names, and
-   implement `export.py` to emit a GLB.
-2. Author real PBR materials and move them into `src/three/materials/`, sampled
-   from the GLB rather than hand-declared.
-3. Replace the primitives with `useGLTF`, traversing to the named nodes and
-   binding materials by name.
-4. Give switch types distinct materials so the configurator's third axis becomes
-   visible. **Done as placeholders** — see Materials above; real values still come
-   from the GLB.
-5. Add instancing or geometry merging for the 75+75 repeated parts.
-6. Add an HDRI or authored lighting rig in place of the three bare lights.
+1. **Model & export** — Blender `nor75.blend` with `NOR75_*` node names, `export.py` → GLB
+2. **Real PBR materials** — Authored in Blender, sampled from GLB, move to `src/three/materials/`
+3. **Replace primitives** — `useGLTF` traversal, bind materials by node name
+4. **Instancing** — Merge 75 keycaps + 75 switches into 2 `InstancedMesh` calls
+5. **HDRI / lighting rig** — Replace three bare lights, make anisotropy visible
+6. **Contact shadows / tone mapping** — `Environment` from `@react-three/drei`, ACES filmic
+7. **GLB validation** — Unit test that named nodes exist, materials bind without error
+
+The empty directories (`src/three/loaders/`, `src/three/shaders/`, `src/three/utils/`, `blender/source/`, `blender/exports/`, `public/models/nor75/`) are the scaffolding for that work.
