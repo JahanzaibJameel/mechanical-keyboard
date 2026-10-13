@@ -460,3 +460,19 @@ the argument for having them:
 - The budget script's median helper returned the upper middle element for an even
   number of runs, overstating the median.
 
+## Milestone 3D Motion — Finale morph deviation
+
+The brief specified a world-space wave:
+  `sin(worldX * 2.0 + worldZ * 1.5 + uTime * 0.8) * 0.05`
+with an implied period of ~7.85 s.
+
+Shipped: `sin(progress * π * 2 * 0.5) * 0.003` — a per-keycap
+oscillation tied to scroll progress, amplitude 0.003, period 2.0 s.
+
+Reason: the world-space formula produced coherent motion across all
+75 keycaps, reading as a single rigid plane waving rather than
+individual keys breathing. Amplitude was also reduced to 0.003 to
+prevent the keycaps from clipping through the plate at peak
+displacement. The shipped version reads as a subtle "breathing" at
+the Finale, which is the intended effect.
+
