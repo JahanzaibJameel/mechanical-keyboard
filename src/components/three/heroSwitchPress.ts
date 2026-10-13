@@ -1,23 +1,14 @@
-/**
- * Press state for the hero switch in Section 07.
- *
- * Kept outside React so the same state can be driven from two places: pointer
- * events on the WebGL switch itself, and the keyboard-accessible button in the
- * Section 07 copy. Module scope keeps it a single source of truth for both,
- * mirroring `useProductConfig`'s external store pattern.
- */
+"use client";
+
+import { Vector2 } from "three";
+import { triggerHeroRipple } from "./keycapMotion";
+
 export const heroSwitchPress = {
   pressed: false,
 };
 
 let requestFrame: (() => void) | null = null;
 
-/**
- * Lets the press store ask for another frame. The canvas runs on
- * `frameloop="always"`, so a press started from the DOM is picked up by the
- * next useFrame tick automatically. The invalidation path is retained as a
- * safety net for any future return to `frameloop="demand"`.
- */
 export function registerHeroSwitchInvalidation(invalidate: () => void): () => void {
   requestFrame = invalidate;
 
@@ -35,4 +26,14 @@ export function setHeroSwitchPressed(pressed: boolean): void {
 
   heroSwitchPress.pressed = pressed;
   requestFrame?.();
+
+  if (pressed) {
+    const canvas = document.querySelector("canvas");
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const centerX = ((rect.left + rect.width / 2) / window.innerWidth) * 2 - 1;
+      const centerY = -((rect.top + rect.height / 2) / window.innerHeight) * 2 + 1;
+      triggerHeroRipple(new Vector2(centerX, centerY));
+    }
+  }
 }
